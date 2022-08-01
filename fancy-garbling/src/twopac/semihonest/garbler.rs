@@ -61,7 +61,7 @@ impl<
             .map(|i| {
                 let zero = Wire::rand(&mut self.rng, q);
                 let one = zero.plus(&delta);
-                wire = wire.plus(&zero.cmul(1 << i));
+                wire = wire.plus(&zero.cmul(1 << i));   // see 7.1 in paper for binary representation labels
                 (zero.as_block(), one.as_block())
             })
             .collect::<Vec<(Block, Block)>>();

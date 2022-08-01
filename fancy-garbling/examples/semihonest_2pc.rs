@@ -33,8 +33,8 @@ fn run_circuit(circ: &mut Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) {
             start.elapsed().unwrap().as_millis()
         );
         let start = SystemTime::now();
-        let xs = gb.encode_many(&gb_inputs, &vec![2; n_gb_inputs]).unwrap();
-        let ys = gb.receive_many(&vec![2; n_ev_inputs]).unwrap();
+        let xs = gb.encode_many(&gb_inputs, &vec![2; n_gb_inputs]).unwrap();    // encoded garbler inputs - only W^0
+        let ys = gb.receive_many(&vec![2; n_ev_inputs]).unwrap();               // encoded evaluator inputs - only W^0
         println!(
             "Garbler :: Encoding inputs: {} ms",
             start.elapsed().unwrap().as_millis()
@@ -54,7 +54,7 @@ fn run_circuit(circ: &mut Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) {
         start.elapsed().unwrap().as_millis()
     );
     let start = SystemTime::now();
-    let xs = ev.receive_many(&vec![2; n_gb_inputs]).unwrap();
+    let xs = ev.receive_many(&vec![2; n_gb_inputs]).unwrap();               // receive inputs in same order! moduli array ev == moduli array gb
     let ys = ev.encode_many(&ev_inputs, &vec![2; n_ev_inputs]).unwrap();
     println!(
         "Evaluator :: Encoding inputs: {} ms",
