@@ -85,6 +85,7 @@ impl Wire {
                 .map(|i| (((lsb >> i) as u16) & 1) & ((((msb >> i) as u16) & 1) << 1))
                 .collect(),
             Wire::ModN { ds, .. } => ds.clone(),
+            Wire::GF4 { elts, .. } => elts.clone(),
         }
     }
 
