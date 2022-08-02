@@ -252,6 +252,11 @@ impl Wire {
                 debug_assert!(color < *q);
                 color
             }
+            Wire::GF4 { p, ref elts } => {
+                let color = elts[0];
+                debug_assert!(color < *p);
+                color
+            }
         }
     }
 
