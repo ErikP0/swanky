@@ -306,7 +306,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         // output zero-wire
         // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
         let C = A
-            .plus(&Din.cmul((q_in - tao) % q_in))
+            .plus(&Din.cmul((q_in - tao) % q_in))          // rotate negative -tao over mod q_in
             .hashback(g, q_out)
             .plus_mov(&Dout.cmul((q_out - tt[((q_in - tao) % q_in) as usize]) % q_out));
 

@@ -47,6 +47,13 @@ pub enum Wire {
         /// A list of `mod-q` digits.
         ds: Vec<u16>,
     },
+    /// Representation of a wire in GF(2^4)
+    GF4 {
+        /// Irreducible polynomial.
+        p: u16,
+        /// A list of GF(2^4) elements.
+        elts: Vec<u16>,
+    },
 }
 
 impl std::default::Default for Wire {
