@@ -330,7 +330,7 @@ mod streaming {
                 f_gb(&mut gb, &gb_inp);
             });
 
-            let mut ev = Evaluator::new(receiver);
+            let mut ev = Evaluator::new(receiver, false);
             let ev_inp = input_mods
                 .iter()
                 .map(|q| ev.read_wire(*q).unwrap())
@@ -508,7 +508,7 @@ mod complex {
                     complex_gadget(&mut garbler, &gb_inp).unwrap();
                 });
 
-                let mut evaluator = Evaluator::new(receiver);
+                let mut evaluator = Evaluator::new(receiver, false);
 
                 // receive encoded wires from the garbler thread
                 let mut ev_inp = Vec::with_capacity(N);

@@ -23,9 +23,9 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
     Evaluator<C, RNG, OT>
 {
     /// Make a new `Evaluator`.
-    pub fn new(mut channel: C, mut rng: RNG) -> Result<Self, TwopacError> {
+    pub fn new(mut channel: C, mut rng: RNG, in_GF: bool) -> Result<Self, TwopacError> {
         let ot = OT::init(&mut channel, &mut rng)?;
-        let evaluator = Ev::new(channel.clone());
+        let evaluator = Ev::new(channel.clone(), in_GF);
         Ok(Self {
             evaluator,
             channel,
@@ -83,15 +83,15 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
                 let range = start..start + len;
                 let chunk = &wires[range];
                 start += len;
-                combine(chunk, *q)
+                combine(chunk, *q, self.evaluator.in_GF())
             })
             .collect::<Vec<Wire>>())
     }
 }
 
-fn combine(wires: &[Block], q: u16) -> Wire {
+fn combine(wires: &[Block], q: u16, in_GF: bool) -> Wire {          // in_GF as bool because &self is not needed here
     wires.iter().enumerate().fold(Wire::zero(q), |acc, (i, w)| {
-        let w = Wire::from_block(*w, q);
+        let w = Wire::from_block(*w, q, in_GF);
         acc.plus(&w.cmul(1 << i))
     })
 }

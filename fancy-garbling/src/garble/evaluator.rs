@@ -20,15 +20,17 @@ pub struct Evaluator<C> {
     channel: C,
     current_gate: usize,
     current_output: usize,
+    in_GF: bool,
 }
 
 impl<C: AbstractChannel> Evaluator<C> {
     /// Create a new `Evaluator`.
-    pub fn new(channel: C) -> Self {
+    pub fn new(channel: C, in_GF: bool) -> Self {
         Evaluator {
             channel,
             current_gate: 0,
             current_output: 0,
+            in_GF,
         }
     }
 
@@ -46,10 +48,15 @@ impl<C: AbstractChannel> Evaluator<C> {
         current
     }
 
+    /// Extract the boolean that indicates if the operations happen in a finite field or not.
+    pub fn in_GF(&mut self) -> bool {
+        self.in_GF
+    }
+
     /// Read a Wire from the reader.
     pub fn read_wire(&mut self, modulus: u16) -> Result<Wire, EvaluatorError> {
         let block = self.channel.read_block()?;
-        Ok(Wire::from_block(block, modulus))
+        Ok(Wire::from_block(block, modulus, self.in_GF))
     }
 }
 
@@ -111,7 +118,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             A.hashback(g, q)
         } else {
             let ct_left = gate[A.color() as usize - 1];
-            Wire::from_block(ct_left ^ A.hash(g), q)
+            Wire::from_block(ct_left ^ A.hash(g), q, self.in_GF)
         };
 
         // evaluator's half gate
@@ -119,7 +126,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             B.hashback(g, q)
         } else {
             let ct_right = gate[(q + B.color()) as usize - 2];
-            Wire::from_block(ct_right ^ B.hash(g), q)
+            Wire::from_block(ct_right ^ B.hash(g), q, self.in_GF)
         };
 
         // hack for unequal mods
@@ -148,7 +155,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             Ok(x.hashback(t, q))
         } else {
             let ct = gate[x.color() as usize - 1];
-            Ok(Wire::from_block(ct ^ x.hash(t), q))
+            Ok(Wire::from_block(ct ^ x.hash(t), q, self.in_GF))
         }
     }
 

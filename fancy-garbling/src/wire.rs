@@ -161,7 +161,16 @@ impl Wire {
 
     /// Unpack the wire represented by a `Block` with modulus `q`. Assumes that
     /// the block was constructed through the `Wire` API.
-    pub fn from_block(inp: Block, q: u16) -> Self {
+    pub fn from_block(inp: Block, q: u16, isGF: bool) -> Self {
+        if isGF {
+            Wire::from_block_GF(inp, q)
+        }
+        else {
+            Wire::from_block_mod(inp, q)
+        }
+    }
+
+    fn from_block_mod(inp: Block, q: u16) -> Self {
         if q == 2 {
             Wire::Mod2 { val: inp }
         } else if q == 3 {
@@ -190,6 +199,11 @@ impl Wire {
             };
             Wire::ModN { q, ds }
         }
+    }
+
+    fn from_block_GF(inp: Block, p: u16) -> Self {
+        // TODO
+        Wire::GF4 { p, elts: () }
     }
 
     /// Pack the wire into a `Block`.
@@ -446,21 +460,28 @@ impl Wire {
     /// Uses fixed-key AES.
     pub fn hashback(&self, tweak: Block, q: u16) -> Wire {
         let block = self.hash(tweak);
-        if q == 3 {
-            // We have to convert `block` into a valid `Mod3` encoding. We do
-            // this by computing the `Mod3` digits using `_unrank`, and then map
-            // these to a `Mod3` encoding.
-            let mut lsb = 0u64;
-            let mut msb = 0u64;
-            let mut ds = Self::_unrank(u128::from(block), q);
-            for (i, v) in ds.drain(..64).enumerate() {
-                lsb |= ((v & 1) as u64) << i;
-                msb |= (((v >> 1) & 1u16) as u64) << i;
+        match *self {
+            Wire::GF4 { p, elts } => {
+                Self::from_block(block, q, true)
             }
-            debug_assert_eq!(lsb & msb, 0);
-            Wire::Mod3 { lsb, msb }
-        } else {
-            Self::from_block(block, q)
+            _ => {
+                if q == 3 {
+                    // We have to convert `block` into a valid `Mod3` encoding. We do
+                    // this by computing the `Mod3` digits using `_unrank`, and then map
+                    // these to a `Mod3` encoding.
+                    let mut lsb = 0u64;
+                    let mut msb = 0u64;
+                    let mut ds = Self::_unrank(u128::from(block), q);
+                    for (i, v) in ds.drain(..64).enumerate() {
+                        lsb |= ((v & 1) as u64) << i;
+                        msb |= (((v >> 1) & 1u16) as u64) << i;
+                    }
+                    debug_assert_eq!(lsb & msb, 0);
+                    Wire::Mod3 { lsb, msb }
+                } else {
+                    Self::from_block(block, q, false)
+                }
+            }
         }
     }
 }
@@ -481,7 +502,7 @@ mod tests {
         for q in 2..256 {
             for _ in 0..1000 {
                 let w = Wire::rand(rng, q);
-                assert_eq!(w, Wire::from_block(w.as_block(), q));
+                assert_eq!(w, Wire::from_block(w.as_block(), q, false));
             }
         }
     }

@@ -49,7 +49,7 @@ mod tests {
                 });
                 let rng = AesRng::new();
                 let mut ev =
-                    Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng)
+                    Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng, false)
                         .unwrap();
                 let x = ev.receive(3).unwrap();
                 let ys = ev.encode_many(&[b], &[3]).unwrap();
@@ -99,7 +99,7 @@ mod tests {
 
         let rng = AesRng::new();
         let mut ev =
-            Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+            Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng, false).unwrap();
         let xs = ev.crt_receive_many(n, q).unwrap();
         let result = relu(&mut ev, &xs).unwrap();
         assert_eq!(target, result);
@@ -123,7 +123,7 @@ mod tests {
         });
         let rng = AesRng::new();
         let mut ev =
-            Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+            Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng, false).unwrap();
         let xs = ev.receive_many(&vec![2; 128]).unwrap();
         let ys = ev.encode_many(&vec![0_u16; 128], &vec![2; 128]).unwrap();
         circ.eval(&mut ev, &xs, &ys).unwrap();
