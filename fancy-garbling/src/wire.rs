@@ -70,6 +70,7 @@ impl HasModulus for Wire {
             Wire::Mod2 { .. } => 2,
             Wire::Mod3 { .. } => 3,
             Wire::ModN { q, .. } => *q,
+            Wire::GF4 { p, .. } => *p,
         }
     }
 }
