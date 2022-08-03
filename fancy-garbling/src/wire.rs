@@ -50,7 +50,7 @@ pub enum Wire {
     /// Representation of a wire in GF(2^4)
     GF4 {
         /// Irreducible polynomial.
-        p: u16,
+        p: u8,
         /// A list of GF(2^4) elements.
         elts: Vec<u16>,
     },
@@ -70,7 +70,7 @@ impl HasModulus for Wire {
             Wire::Mod2 { .. } => 2,
             Wire::Mod3 { .. } => 3,
             Wire::ModN { q, .. } => *q,
-            Wire::GF4 { p, .. } => *p,
+            Wire::GF4 { p, .. } => *p as u16,
         }
     }
 }
