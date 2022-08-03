@@ -39,7 +39,7 @@ pub trait Fancy {
     type Error: std::fmt::Debug + std::fmt::Display + std::convert::From<FancyError>;
 
     /// Create a constant `x` with modulus `q`.
-    fn constant(&mut self, x: u16, q: u16) -> Result<Self::Item, Self::Error>;
+    fn constant(&mut self, x: u16, q: &Modulus) -> Result<Self::Item, Self::Error>;
 
     /// Add `x` and `y`.
     fn add(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error>;
@@ -59,7 +59,7 @@ pub trait Fancy {
     fn proj(
         &mut self,
         x: &Self::Item,
-        q: Modulus,
+        q: &Modulus,
         tt: Option<Vec<u16>>,
     ) -> Result<Self::Item, Self::Error>;
 
@@ -109,7 +109,7 @@ pub trait Fancy {
     /// Negate by xoring `x` with `1`.
     fn negate(&mut self, x: &Self::Item) -> Result<Self::Item, Self::Error> {
         if let Modulus::Zq { q:2 } = x.modulus() {
-            let one = self.constant(1, 2)?;
+            let one = self.constant(1, &x.modulus())?;
             self.xor(x, &one)
         }
         else {
@@ -198,7 +198,7 @@ pub trait Fancy {
                 return Ok(x.clone());
             } else {
                 let tab = (0..qfrom).map(|x| x % to_modulus).collect_vec();
-                self.proj(x, from_modulus, Some(tab))
+                self.proj(x, &from_modulus, Some(tab))
             }
         } else {
             panic!("Wire x is not a Zq type");
@@ -268,9 +268,9 @@ pub trait Fancy {
             } else if b1 && !b2 {
                 self.negate(x)
             } else if !b1 && !b2 {
-                self.constant(0, 2)
+                self.constant(0, &x.modulus())
             } else {
-                self.constant(1, 2)
+                self.constant(1, &x.modulus())
             }
         } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
