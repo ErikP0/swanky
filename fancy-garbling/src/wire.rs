@@ -184,12 +184,10 @@ impl Wire {
 
     /// Unpack the wire represented by a `Block` with modulus `q`. Assumes that
     /// the block was constructed through the `Wire` API.
-    pub fn from_block(inp: Block, q: u16, isGF: bool) -> Self {
-        if isGF {
-            Wire::from_block_GF(inp, q)
-        }
-        else {
-            Wire::from_block_mod(inp, q)
+    pub fn from_block(inp: Block, modulus: &Modulus) -> Self {
+        match *modulus {
+            Modulus::Zq { q } => Wire::from_block_mod(inp, q),
+            Modulus::GF4 { p } => Wire::from_block_GF(inp, p),
         }
     }
 
@@ -224,7 +222,7 @@ impl Wire {
         }
     }
 
-    fn from_block_GF(inp: Block, p: u16) -> Self {
+    fn from_block_GF(inp: Block, p: u8) -> Self {
         // TODO
         Wire::GF4 { p, elts: () }
     }
@@ -235,32 +233,36 @@ impl Wire {
             Wire::Mod2 { val } => *val,
             Wire::Mod3 { lsb, msb } => Block::from(((*msb as u128) << 64) | (*lsb as u128)),
             Wire::ModN { q, ref ds } => Block::from(util::from_base_q(ds, *q)),
-            Wire::GF4 { p, elts } => Block::from(),
+            Wire::GF4 { p, elts } => Block::from(util::from_poly_p4(elts, *p)),
         }
     }
 
     /// The zero wire with modulus `q`.
-    pub fn zero(q: u16) -> Self {
-        match q {
-            0 => panic!("[Wire::zero] mod 0 not allowed!"),
-            1 => panic!("[Wire::zero] mod 1 not allowed!"),
-            2 => Wire::Mod2 {
+    pub fn zero(modulus: &Modulus) -> Self {
+        match *modulus {
+            Modulus::Zq { q: 0 } => panic!("[Wire::zero] mod 0 not allowed!"),
+            Modulus::Zq { q: 1 } => panic!("[Wire::zero] mod 1 not allowed!"),
+            Modulus::Zq { q: 2 } => Wire::Mod2 {
                 val: Default::default(),
             },
-            3 => Wire::Mod3 {
+            Modulus::Zq { q: 3 } => Wire::Mod3 {
                 lsb: Default::default(),
                 msb: Default::default(),
             },
-            _ => Wire::ModN {
+            Modulus::Zq { q } => Wire::ModN {
                 q,
                 ds: vec![0; util::digits_per_u128(q)],
+            },
+            Modulus::GF4 { p } => Wire::GF4 { 
+                p,
+                elts: vec![0; 32],
             },
         }
     }
 
     /// Get a random wire label mod `q`, with the first digit set to `1`.
-    pub fn rand_delta<R: CryptoRng + Rng>(rng: &mut R, q: u16) -> Self {
-        let mut w = Self::rand(rng, q);
+    pub fn rand_delta<R: CryptoRng + Rng>(rng: &mut R, modulus: &Modulus) -> Self {
+        let mut w = Self::rand(rng, modulus);
         match w {
             Wire::Mod2 { ref mut val } => *val = val.set_lsb(),
             Wire::Mod3 {
@@ -274,6 +276,7 @@ impl Wire {
                 *msb &= 0xFFFF_FFFF_FFFF_FFFE;
             }
             Wire::ModN { ref mut ds, .. } => ds[0] = 1,
+            Wire::GF4 { ref mut elts, .. } => elts[0] = 1,
         }
         w
     }
@@ -294,7 +297,7 @@ impl Wire {
             }
             Wire::GF4 { p, ref elts } => {
                 let color = elts[0];
-                debug_assert!(color < *p);
+                debug_assert!(color < *p as u16);
                 color
             }
         }
@@ -344,17 +347,21 @@ impl Wire {
                     *x = if overflow { *x + y } else { zp }
                 });
             }
-            (Wire::GF4 { p: ref xpoly, elts: ref mut xs},Wire::GF4 { p: ref ypoly, elts: ref mut ys }) => {
+            (
+                Wire::GF4 { 
+                    p: ref xpoly, 
+                    elts: ref mut xs
+                },
+                Wire::GF4 { 
+                    p: ref ypoly, 
+                    elts: ref mut ys 
+                },
+            ) => {
                 // Because we work in F(2^k), this is just a bitwise addition in F2. 
-                
-
+                debug_assert_eq!(xpoly, ypoly);
+                debug_assert_eq!(xs.len(), ys.len());                
+                // TODO
             }
-
-
-
-
-
-
 
             _ => panic!("[Wire::plus_eq] unequal moduli!"),
         }
@@ -399,6 +406,9 @@ impl Wire {
             Wire::ModN { q, ds } => {
                 ds.iter_mut()
                     .for_each(|d| *d = (*d as u32 * c as u32 % *q as u32) as u16);
+            },
+            Wire::GF4 { p, elts } => {
+                // TODO
             }
         }
         self
@@ -434,6 +444,9 @@ impl Wire {
                     }
                 });
             }
+            Wire::GF4 { .. } => {
+                // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
+            }
         }
         self
     }
@@ -461,25 +474,35 @@ impl Wire {
     }
 
     /// Get a random wire `mod q`.
-    pub fn rand<R: CryptoRng + RngCore>(rng: &mut R, q: u16) -> Wire {
-        if q == 2 {
-            Wire::Mod2 { val: rng.gen() }
-        } else if q == 3 {
-            // Generate 64 mod-three values and then embed them into `lsb` and
-            // `msb`.
-            let mut lsb = 0u64;
-            let mut msb = 0u64;
-            for (i, v) in (0..64).map(|_| rng.gen::<u8>() % 3).enumerate() {
-                lsb |= ((v & 1) as u64) << i;
-                msb |= (((v >> 1) & 1) as u64) << i;
-            }
-            debug_assert_eq!(lsb & msb, 0);
-            Wire::Mod3 { lsb, msb }
-        } else {
-            let ds = (0..util::digits_per_u128(q))
-                .map(|_| rng.gen::<u16>() % q)
-                .collect();
-            Wire::ModN { q, ds }
+    pub fn rand<R: CryptoRng + RngCore>(rng: &mut R, modulus: &Modulus) -> Wire {
+        match *modulus { 
+            Modulus::Zq { q } => {
+                if q == 2 {
+                    Wire::Mod2 { val: rng.gen() }
+                } else if q == 3 {
+                    // Generate 64 mod-three values and then embed them into `lsb` and
+                    // `msb`.
+                    let mut lsb = 0u64;
+                    let mut msb = 0u64;
+                    for (i, v) in (0..64).map(|_| rng.gen::<u8>() % 3).enumerate() {
+                        lsb |= ((v & 1) as u64) << i;
+                        msb |= (((v >> 1) & 1) as u64) << i;
+                    }
+                    debug_assert_eq!(lsb & msb, 0);
+                    Wire::Mod3 { lsb, msb }
+                } else {
+                    let ds = (0..util::digits_per_u128(q))
+                        .map(|_| rng.gen::<u16>() % q)
+                        .collect();
+                    Wire::ModN { q, ds }
+                }
+            },
+            Modulus::GF4 { p } => {
+                let elts = (0..32)
+                    .map(|_| (rng.gen::<u8>() % 16) as u16)
+                    .collect();
+                Wire::GF4 { p, elts }
+            },
         }
     }
 
@@ -498,7 +521,7 @@ impl Wire {
         let block = self.hash(tweak);
         match self {
             Wire::GF4 { .. } => {
-                Self::from_block(block, q, true)
+                Self::from_block(block, &Modulus::GF4 { p: q as u8 })
             }
             _ => {
                 if q == 3 {
@@ -515,7 +538,7 @@ impl Wire {
                     debug_assert_eq!(lsb & msb, 0);
                     Wire::Mod3 { lsb, msb }
                 } else {
-                    Self::from_block(block, q, false)
+                    Self::from_block(block, &Modulus::Zq { q })
                 }
             }
         }
@@ -537,8 +560,8 @@ mod tests {
         let ref mut rng = thread_rng();
         for q in 2..256 {
             for _ in 0..1000 {
-                let w = Wire::rand(rng, q);
-                assert_eq!(w, Wire::from_block(w.as_block(), q, false));
+                let w = Wire::rand(rng, &Modulus::Zq{ q });
+                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::Zq{ q }));
             }
         }
     }
@@ -549,7 +572,7 @@ mod tests {
         for _ in 0..1000 {
             let q = 5 + (rng.gen_u16() % 110);
             let x = rng.gen_u128();
-            let w = Wire::from_block(Block::from(x), q, false);
+            let w = Wire::from_block(Block::from(x), &Modulus::Zq{ q });
             let should_be = util::as_base_q_u128(x, q);
             assert_eq!(w.digits(), should_be, "x={} q={}", x, q);
         }
@@ -560,13 +583,14 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..100 {
             let q = 2 + (rng.gen_u16() % 110);
-            let x = Wire::rand(&mut rng, q);
+            let x = Wire::rand(&mut rng, &Modulus::Zq { q });
             let y = x.hashback(Block::from(1u128), q);
             assert!(x != y);
             match y {
                 Wire::Mod2 { val } => assert!(u128::from(val) > 0),
                 Wire::Mod3 { lsb, msb } => assert!(lsb > 0 && msb > 0),
                 Wire::ModN { ds, .. } => assert!(!ds.iter().all(|&y| y == 0)),
+                Wire::GF4 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
             }
         }
     }
@@ -576,7 +600,7 @@ mod tests {
         let ref mut rng = thread_rng();
         for _ in 0..1000 {
             let q = rng.gen_modulus();
-            let x = Wire::rand(rng, q);
+            let x = Wire::rand(rng, &Modulus::Zq { q });
             let xneg = x.negate();
             if q != 2 {
                 assert!(x != xneg);
@@ -591,7 +615,7 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1000 {
             let q = 3 + (rng.gen_u16() % 110);
-            let z = Wire::zero(q);
+            let z = Wire::zero(&Modulus::Zq { q });
             let ds = z.digits();
             assert_eq!(ds, vec![0; ds.len()], "q={}", q);
         }
@@ -602,8 +626,8 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1000 {
             let q = rng.gen_modulus();
-            let x = Wire::rand(&mut rng, q);
-            let z = Wire::zero(q);
+            let x = Wire::rand(&mut rng, &Modulus::Zq{ q });
+            let z = Wire::zero(&Modulus::Zq{ q });
             assert_eq!(x.minus(&x), z);
         }
     }
@@ -613,8 +637,8 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1000 {
             let q = rng.gen_modulus();
-            let x = Wire::rand(&mut rng, q);
-            assert_eq!(x.plus(&Wire::zero(q)), x);
+            let x = Wire::rand(&mut rng, &Modulus::Zq{ q });
+            assert_eq!(x.plus(&Wire::zero(&Modulus::Zq{ q })), x);
         }
     }
 
@@ -623,17 +647,17 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1024 {
             let q = rng.gen_modulus();
-            let x = Wire::rand(&mut rng, q);
-            let y = Wire::rand(&mut rng, q);
-            assert_eq!(x.cmul(0), Wire::zero(q));
-            assert_eq!(x.cmul(q), Wire::zero(q));
+            let x = Wire::rand(&mut rng, &Modulus::Zq { q });
+            let y = Wire::rand(&mut rng, &Modulus::Zq { q });
+            assert_eq!(x.cmul(0), Wire::zero(&Modulus::Zq{ q }));
+            assert_eq!(x.cmul(q), Wire::zero(&Modulus::Zq{ q }));
             assert_eq!(x.plus(&x), x.cmul(2));
             assert_eq!(x.plus(&x).plus(&x), x.cmul(3));
             assert_eq!(x.negate().negate(), x);
             if q == 2 {
                 assert_eq!(x.plus(&y), x.minus(&y));
             } else {
-                assert_eq!(x.plus(&x.negate()), Wire::zero(q), "q={}", q);
+                assert_eq!(x.plus(&x.negate()), Wire::zero(&Modulus::Zq{ q }), "q={}", q);
                 assert_eq!(x.minus(&y), x.plus(&y.negate()));
             }
             let mut w = x.clone();
@@ -656,7 +680,7 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1024 {
             let q = rng.gen_modulus();
-            let x = Wire::rand(&mut rng, q);
+            let x = Wire::rand(&mut rng, &Modulus::Zq { q });
             assert_eq!(x.digits().len(), util::digits_per_u128(q));
         }
     }
@@ -666,7 +690,7 @@ mod tests {
         let n = 1000;
         let mut rng = thread_rng();
         let q = rng.gen_modulus();
-        let ws = (0..n).map(|_| Wire::rand(&mut rng, q)).collect_vec();
+        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::Zq { q })).collect_vec();
 
         let hashes = crossbeam::scope(|scope| {
             let hs = ws

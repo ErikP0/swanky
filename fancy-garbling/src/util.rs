@@ -8,6 +8,7 @@
 //!
 //! Note: all number representations in this library are little-endian.
 
+use std::convert::TryInto;
 use crate::Wire;
 #[cfg(feature = "nightly")]
 use core::arch::x86_64::*;
@@ -156,14 +157,16 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
 }
 
 /// Convert a vector of elements in GF(2^4) to a vector of u8s.
-pub fn from_poly_p4(elts: &[u16], p: u8) -> Vec<u8> {
+pub fn from_poly_p4(elts: &[u16], p: u8) -> [u8; 16] {
     debug_assert!(p < 32, "field polynomial has a degree that is too high");
     elts.chunks(2).rev()
     .map(|c| {
         let c1 = c[1] << 4;
         (c1 + c[0]) as u8
     })
-    .collect()
+    .collect::<Vec<u8>>()
+    .try_into()
+    .unwrap()
 }
 
 /// Convert little-endian mixed radix digits into u128.
@@ -374,6 +377,11 @@ pub fn product(xs: &[u16]) -> u128 {
 /// Returns `true` if `x` is a power of 2.
 pub fn is_power_of_2(x: u16) -> bool {
     (x & (x - 1)) == 0
+}
+
+/// Divides a u16 that represents a polynomial by a quotient field's irreducible polynomial p.
+pub fn reduce_p(x: u16, p: u8) -> u16 {
+    // TODO
 }
 
 // Generate deltas for GC
