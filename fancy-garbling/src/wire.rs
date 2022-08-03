@@ -56,6 +56,29 @@ pub enum Wire {
     },
 }
 
+/// Modulus type, either an integer modulus for Zq, or an irreducible polynomial representation for GF(2^k)
+#[derive(Copy, Debug, Clone, PartialEq)]
+// #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
+pub enum Modulus {
+    /// Integer modulus for Zq.
+    Zq {
+        q: u16,
+    },
+    /// Irreducible polynomial for GF(2^4).
+    GF4 {
+        p: u8,
+    },
+}
+
+impl std::fmt::Display for Modulus {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match *self {
+            Modulus::Zq { q } => write!(fmt, "q = {}", q),
+            Modulus::GF4 { p } => write!(fmt, "p = {}", p)
+        }
+    }
+}
+
 impl std::default::Default for Wire {
     fn default() -> Self {
         Wire::Mod2 {
@@ -65,12 +88,12 @@ impl std::default::Default for Wire {
 }
 
 impl HasModulus for Wire {
-    fn modulus(&self) -> u16 {
+    fn modulus(&self) -> Modulus {
         match self {
-            Wire::Mod2 { .. } => 2,
-            Wire::Mod3 { .. } => 3,
-            Wire::ModN { q, .. } => *q,
-            Wire::GF4 { p, .. } => *p as u16,
+            Wire::Mod2 { .. } => Modulus::Zq { q: 2 },
+            Wire::Mod3 { .. } => Modulus::Zq { q: 3 },
+            Wire::ModN { q, .. } => Modulus::Zq { q: *q },
+            Wire::GF4 { p, .. } => Modulus::GF4 { p: *p },
         }
     }
 }
@@ -212,6 +235,7 @@ impl Wire {
             Wire::Mod2 { val } => *val,
             Wire::Mod3 { lsb, msb } => Block::from(((*msb as u128) << 64) | (*lsb as u128)),
             Wire::ModN { q, ref ds } => Block::from(util::from_base_q(ds, *q)),
+            Wire::GF4 { p, elts } => Block::from(),
         }
     }
 
@@ -472,8 +496,8 @@ impl Wire {
     /// Uses fixed-key AES.
     pub fn hashback(&self, tweak: Block, q: u16) -> Wire {
         let block = self.hash(tweak);
-        match *self {
-            Wire::GF4 { p, elts } => {
+        match self {
+            Wire::GF4 { .. } => {
                 Self::from_block(block, q, true)
             }
             _ => {
@@ -525,7 +549,7 @@ mod tests {
         for _ in 0..1000 {
             let q = 5 + (rng.gen_u16() % 110);
             let x = rng.gen_u128();
-            let w = Wire::from_block(Block::from(x), q);
+            let w = Wire::from_block(Block::from(x), q, false);
             let should_be = util::as_base_q_u128(x, q);
             assert_eq!(w.digits(), should_be, "x={} q={}", x, q);
         }

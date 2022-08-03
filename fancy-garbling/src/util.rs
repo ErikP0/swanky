@@ -13,6 +13,7 @@ use crate::Wire;
 use core::arch::x86_64::*;
 use itertools::Itertools;
 use scuttlebutt::Block;
+use serde_json::map;
 use std::collections::HashMap;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,6 +153,17 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
         x = xp + d as u128;
     }
     x
+}
+
+/// Convert a vector of elements in GF(2^4) to a vector of u8s.
+pub fn from_poly_p4(elts: &[u16], p: u8) -> Vec<u8> {
+    debug_assert!(p < 32, "field polynomial has a degree that is too high");
+    elts.chunks(2).rev()
+    .map(|c| {
+        let c1 = c[1] << 4;
+        (c1 + c[0]) as u8
+    })
+    .collect()
 }
 
 /// Convert little-endian mixed radix digits into u128.
@@ -510,6 +522,18 @@ mod tests {
             let z = from_base_q(&y, q);
             assert_eq!(x, z);
         }
+    }
+
+    #[test]
+    fn GF4_to_u8_array() {
+        let mut rng = thread_rng();
+        let mut elts: Vec<u16> = Vec::with_capacity(32);
+        let p: u8 = 6;
+        for _ in 0..32 {
+            elts.push(rng.gen_u16() % 16);
+        }
+        println!("res is {:?}", from_poly_p4(&elts, p))
+
     }
 }
 
