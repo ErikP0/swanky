@@ -73,8 +73,8 @@ pub enum Modulus {
 impl std::fmt::Display for Modulus {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
-            Modulus::Zq { q } => write!(fmt, "q = {}", q),
-            Modulus::GF4 { p } => write!(fmt, "p = {}", p)
+            Modulus::Zq { q } => write!(fmt, "modulus q = {}", q),
+            Modulus::GF4 { p } => write!(fmt, "irreducible polynomial p = {}", p)
         }
     }
 }

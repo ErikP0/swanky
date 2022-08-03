@@ -59,7 +59,7 @@ pub trait Fancy {
     fn proj(
         &mut self,
         x: &Self::Item,
-        q: u16,
+        q: Modulus,
         tt: Option<Vec<u16>>,
     ) -> Result<Self::Item, Self::Error>;
 
@@ -87,68 +87,80 @@ pub trait Fancy {
 
     /// Xor is just addition, with the requirement that `x` and `y` are mod 2.
     fn xor(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if x.modulus() != 2 {
+        if  let Modulus::Zq{ q:2 } = x.modulus() {
+            if  let Modulus::Zq{ q:2 } = y.modulus() {
+                self.add(x, y)
+            }
+            else {
+                return Err(Self::Error::from(FancyError::InvalidArgMod {
+                    got: y.modulus(),
+                    needed: Modulus::Zq { q: 2 },
+                }));
+            }
+        } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
         }
-        if y.modulus() != 2 {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
-                got: y.modulus(),
-                needed: 2,
-            }));
-        }
-        self.add(x, y)
+
     }
 
     /// Negate by xoring `x` with `1`.
     fn negate(&mut self, x: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if x.modulus() != 2 {
+        if let Modulus::Zq { q:2 } = x.modulus() {
+            let one = self.constant(1, 2)?;
+            self.xor(x, &one)
+        }
+        else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
         }
-        let one = self.constant(1, 2)?;
-        self.xor(x, &one)
     }
 
     /// And is just multiplication, with the requirement that `x` and `y` are mod 2.
     fn and(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if x.modulus() != 2 {
+        if  let Modulus::Zq{ q:2 } = x.modulus() {
+            if  let Modulus::Zq{ q:2 } = y.modulus() {
+                self.mul(x, y)
+            }
+            else {
+                return Err(Self::Error::from(FancyError::InvalidArgMod {
+                    got: y.modulus(),
+                    needed: Modulus::Zq { q: 2 },
+                }));
+            }
+        } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
         }
-        if y.modulus() != 2 {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
-                got: y.modulus(),
-                needed: 2,
-            }));
-        }
-        self.mul(x, y)
     }
 
     /// Or uses Demorgan's Rule implemented with multiplication and negation.
     fn or(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if x.modulus() != 2 {
+        if  let Modulus::Zq{ q:2 } = x.modulus() {
+            if  let Modulus::Zq{ q:2 } = y.modulus() {
+                let notx = self.negate(x)?;
+                let noty = self.negate(y)?;
+                let z = self.and(&notx, &noty)?;
+                self.negate(&z)
+            }
+            else {
+                return Err(Self::Error::from(FancyError::InvalidArgMod {
+                    got: y.modulus(),
+                    needed: Modulus::Zq { q: 2 },
+                }));
+            }
+        } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
         }
-        if y.modulus() != 2 {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
-                got: y.modulus(),
-                needed: 2,
-            }));
-        }
-        let notx = self.negate(x)?;
-        let noty = self.negate(y)?;
-        let z = self.and(&notx, &noty)?;
-        self.negate(&z)
     }
 
     /// Returns 1 if all wires equal 1.
@@ -180,13 +192,18 @@ pub trait Fancy {
     /// Change the modulus of `x` to `to_modulus` using a projection gate.
     fn mod_change(&mut self, x: &Self::Item, to_modulus: u16) -> Result<Self::Item, Self::Error> {
         let from_modulus = x.modulus();
-        if from_modulus == to_modulus {
-            return Ok(x.clone());
-        }
-        let tab = (0..from_modulus).map(|x| x % to_modulus).collect_vec();
-        self.proj(x, to_modulus, Some(tab))
-    }
 
+        if let Modulus::Zq { q: qfrom } = from_modulus {
+            if qfrom ==to_modulus {
+                return Ok(x.clone());
+            } else {
+                let tab = (0..qfrom).map(|x| x % to_modulus).collect_vec();
+                self.proj(x, from_modulus, Some(tab))
+            }
+        } else {
+            panic!("Wire x is not a Zq type");
+        }
+}
     /// Binary adder. Returns the result and the carry.
     fn adder(
         &mut self,
@@ -194,29 +211,32 @@ pub trait Fancy {
         y: &Self::Item,
         carry_in: Option<&Self::Item>,
     ) -> Result<(Self::Item, Self::Item), Self::Error> {
-        if x.modulus() != 2 {
+        if  let Modulus::Zq{ q:2 } = x.modulus() {
+            if  let Modulus::Zq{ q:2 } = y.modulus() {
+                if let Some(c) = carry_in {
+                    let z1 = self.xor(x, y)?;
+                    let z2 = self.xor(&z1, c)?;
+                    let z3 = self.xor(x, c)?;
+                    let z4 = self.and(&z1, &z3)?;
+                    let carry = self.xor(&z4, x)?;
+                    Ok((z2, carry))
+                } else {
+                    let z = self.xor(x, y)?;
+                    let carry = self.and(x, y)?;
+                    Ok((z, carry))
+                }
+            }
+            else {
+                return Err(Self::Error::from(FancyError::InvalidArgMod {
+                    got: y.modulus(),
+                    needed: Modulus::Zq { q: 2 },
+                }));
+            }
+        } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
-        }
-        if y.modulus() != 2 {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
-                got: y.modulus(),
-                needed: 2,
-            }));
-        }
-        if let Some(c) = carry_in {
-            let z1 = self.xor(x, y)?;
-            let z2 = self.xor(&z1, c)?;
-            let z3 = self.xor(x, c)?;
-            let z4 = self.and(&z1, &z3)?;
-            let carry = self.xor(&z4, x)?;
-            Ok((z2, carry))
-        } else {
-            let z = self.xor(x, y)?;
-            let carry = self.and(x, y)?;
-            Ok((z, carry))
         }
     }
 
@@ -242,20 +262,21 @@ pub trait Fancy {
         b1: bool,
         b2: bool,
     ) -> Result<Self::Item, Self::Error> {
-        if x.modulus() != 2 {
+        if let Modulus::Zq{ q:2 } = x.modulus() {
+            if !b1 && b2 {
+                Ok(x.clone())
+            } else if b1 && !b2 {
+                self.negate(x)
+            } else if !b1 && !b2 {
+                self.constant(0, 2)
+            } else {
+                self.constant(1, 2)
+            }
+        } else {
             return Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
-                needed: 2,
+                needed: Modulus::Zq { q: 2 },
             }));
-        }
-        if !b1 && b2 {
-            Ok(x.clone())
-        } else if b1 && !b2 {
-            self.negate(x)
-        } else if !b1 && !b2 {
-            self.constant(0, 2)
-        } else {
-            self.constant(1, 2)
         }
     }
 

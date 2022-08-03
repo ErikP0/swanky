@@ -9,6 +9,8 @@
 use scuttlebutt::Block;
 use std::fmt::{self, Display, Formatter};
 
+use crate::Modulus;
+
 /// Errors that may occur when using the `Fancy` trait. These errors are
 /// API-usage errors, such as trying to add two `Items` with different moduli.
 #[derive(Debug)]
@@ -27,9 +29,9 @@ pub enum FancyError {
     /// Invalid argument modulus.
     InvalidArgMod {
         /// Received modulus.
-        got: u16,
+        got: Modulus,
         /// Expected modulus.
-        needed: u16,
+        needed: Modulus,
     },
     /// Expected binary argument.
     ArgNotBinary,
