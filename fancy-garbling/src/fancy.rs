@@ -23,11 +23,11 @@ pub use bundle::{Bundle, BundleGadgets};
 pub use crt::{CrtBundle, CrtGadgets};
 pub use input::FancyInput;
 pub use reveal::FancyReveal;
-
+pub use crate::wire::Modulus;
 /// An object that has some modulus. Basic object of `Fancy` computations.
 pub trait HasModulus {
     /// The modulus of the wire.
-    fn modulus(&self) -> u16;
+    fn modulus(&self) -> Modulus;
 }
 
 /// DSL for the basic computations supported by `fancy-garbling`.

@@ -11,6 +11,7 @@ use crate::{
     dummy::{Dummy, DummyVal},
     errors::{CircuitBuilderError, DummyError, FancyError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
+    wire::Modulus
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -20,7 +21,7 @@ use std::collections::HashMap;
 #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub struct CircuitRef {
     pub(crate) ix: usize,
-    pub(crate) modulus: u16,
+    pub(crate) modulus: Modulus,
 }
 
 impl std::fmt::Display for CircuitRef {
@@ -30,7 +31,7 @@ impl std::fmt::Display for CircuitRef {
 }
 
 impl HasModulus for CircuitRef {
-    fn modulus(&self) -> u16 {
+    fn modulus(&self) -> Modulus {
         self.modulus
     }
 }
