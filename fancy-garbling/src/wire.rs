@@ -320,6 +320,18 @@ impl Wire {
                     *x = if overflow { *x + y } else { zp }
                 });
             }
+            (Wire::GF4 { p: ref xpoly, elts: ref mut xs},Wire::GF4 { p: ref ypoly, elts: ref mut ys }) => {
+                // Because we work in F(2^k), this is just a bitwise addition in F2. 
+                
+
+            }
+
+
+
+
+
+
+
             _ => panic!("[Wire::plus_eq] unequal moduli!"),
         }
 
