@@ -350,19 +350,20 @@ impl Wire {
             (
                 Wire::GF4 { 
                     p: ref xpoly, 
-                    elts: ref mut xs
+                    elts: ref mut xs,
                 },
                 Wire::GF4 { 
                     p: ref ypoly, 
-                    elts: ref mut ys 
+                    elts: ref ys, 
                 },
             ) => {
                 // Because we work in F(2^k), this is just a bitwise addition in F2. 
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
-                // TODO
-            }
-
+                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
+                    *x ^= y;
+                });
+            } 
             _ => panic!("[Wire::plus_eq] unequal moduli!"),
         }
 
