@@ -5,8 +5,8 @@
 // See LICENSE for licensing information.
 
 use super::*;
-use crate::util;
 use crate::wire::Modulus;
+use crate::util;
 use alloc::vec::Vec;
 use itertools::Itertools;
 
