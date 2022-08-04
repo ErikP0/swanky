@@ -4,7 +4,7 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-use crate::{errors::TwopacError, Evaluator as Ev, Fancy, FancyInput, FancyReveal, Wire};
+use crate::{errors::TwopacError, Evaluator as Ev, Fancy, FancyInput, FancyReveal, Wire, Modulus};
 use ocelot::ot::Receiver as OtReceiver;
 use rand::{CryptoRng, Rng};
 use scuttlebutt::{AbstractChannel, Block, SemiHonest};
@@ -23,9 +23,9 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
     Evaluator<C, RNG, OT>
 {
     /// Make a new `Evaluator`.
-    pub fn new(mut channel: C, mut rng: RNG, in_GF: bool) -> Result<Self, TwopacError> {
+    pub fn new(mut channel: C, mut rng: RNG) -> Result<Self, TwopacError> {
         let ot = OT::init(&mut channel, &mut rng)?;
-        let evaluator = Ev::new(channel.clone(), in_GF);
+        let evaluator = Ev::new(channel.clone());
         Ok(Self {
             evaluator,
             channel,
@@ -53,18 +53,18 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
     type Error = TwopacError;
 
     /// Receive a garbler input wire.
-    fn receive(&mut self, modulus: u16) -> Result<Wire, TwopacError> {
+    fn receive(&mut self, modulus: &Modulus) -> Result<Wire, TwopacError> {
         let w = self.evaluator.read_wire(modulus)?;
         Ok(w)
     }
 
     /// Receive garbler input wires.
-    fn receive_many(&mut self, moduli: &[u16]) -> Result<Vec<Wire>, TwopacError> {
-        moduli.iter().map(|q| self.receive(*q)).collect()
+    fn receive_many(&mut self, moduli: &[Modulus]) -> Result<Vec<Wire>, TwopacError> {
+        moduli.iter().map(|modulus| self.receive(modulus)).collect()
     }
 
     /// Perform OT and obtain wires for the evaluator's inputs.
-    fn encode_many(&mut self, inputs: &[u16], moduli: &[u16]) -> Result<Vec<Wire>, TwopacError> {
+    fn encode_many(&mut self, inputs: &[u16], moduli: &[Modulus]) -> Result<Vec<Wire>, TwopacError> {
         let mut lens = Vec::new();
         let mut bs = Vec::new();
         for (x, q) in inputs.iter().zip(moduli.iter()) {
@@ -89,7 +89,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
     }
 }
 
-fn combine(wires: &[Block], q: u16, in_GF: bool) -> Wire {          // in_GF as bool because &self is not needed here
+fn combine(wires: &[Block], q: &Modulus) -> Wire {          // in_GF as bool because &self is not needed here
     wires.iter().enumerate().fold(Wire::zero(q), |acc, (i, w)| {
         let w = Wire::from_block(*w, q, in_GF);
         acc.plus(&w.cmul(1 << i))
