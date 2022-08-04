@@ -74,7 +74,7 @@ pub trait FancyInput {
         values: &[Vec<u16>],
         moduli: &[Vec<u16>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().collect_vec();
+        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
         let xs = values.iter().flatten().cloned().collect_vec();
         if xs.len() != qs.len() {
             return Err(
@@ -97,7 +97,7 @@ pub trait FancyInput {
         &mut self,
         moduli: &[Vec<u16>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().collect_vec();
+        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
         let mut wires = self.receive_many(&qs)?;
         let buns = moduli
             .iter()
@@ -141,6 +141,7 @@ pub trait FancyInput {
             .collect_vec();
         let qs = itertools::repeat_n(mods, values.len())
             .flatten()
+            .map(|q| Modulus::Zq { q })
             .collect_vec();
         let mut wires = self.encode_many(&xs, &qs)?;
         let buns = (0..values.len())
@@ -160,7 +161,7 @@ pub trait FancyInput {
     ) -> Result<Vec<CrtBundle<Self::Item>>, Self::Error> {
         let mods = util::factor(modulus);
         let nmods = mods.len();
-        let qs = itertools::repeat_n(mods, n).flatten().collect_vec();
+        let qs = itertools::repeat_n(mods, n).flatten().map(|q| Modulus::Zq { q }).collect_vec();
         let mut wires = self.receive_many(&qs)?;
         let buns = (0..n)
             .map(|_| {
@@ -198,7 +199,7 @@ pub trait FancyInput {
             .map(|x| util::u128_to_bits(*x, nbits))
             .flatten()
             .collect_vec();
-        let mut wires = self.encode_many(&xs, &vec![2; values.len() * nbits])?;
+        let mut wires = self.encode_many(&xs, &vec![Modulus::Zq { q:2 }; values.len() * nbits])?;
         let buns = (0..values.len())
             .map(|_| {
                 let ws = wires.drain(0..nbits).collect_vec();
@@ -214,7 +215,7 @@ pub trait FancyInput {
         ninputs: usize,
         nbits: usize,
     ) -> Result<Vec<BinaryBundle<Self::Item>>, Self::Error> {
-        let mut wires = self.receive_many(&vec![2; ninputs * nbits])?;
+        let mut wires = self.receive_many(&vec![Modulus::Zq { q:2 }; ninputs * nbits])?;
         let buns = (0..ninputs)
             .map(|_| {
                 let ws = wires.drain(0..nbits).collect_vec();
