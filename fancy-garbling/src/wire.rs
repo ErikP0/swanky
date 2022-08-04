@@ -417,7 +417,7 @@ impl Wire {
             Wire::GF4 { p, elts } => {
                 elts.iter_mut().map(|d| {
                     *d *= c;
-                    util::reduce_p_GF4(*d as u8, p) as u16
+                    util::reduce_p_GF4(*d as u8, *p) as u16
                 });
             }
         }
