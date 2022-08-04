@@ -94,7 +94,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                 if q < qb {
                     return self.mul(B, A);
                 }
-                // let q = A.modulus();
+                let qM = A.modulus();
                 // let qb = B.modulus();
                 let unequal = q != qb;
                 let ngates = q as usize + qb as usize - 2 + unequal as usize;
@@ -113,7 +113,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                     A.hashback(g, q)
                 } else {
                     let ct_left = gate[A.color() as usize - 1];
-                    Wire::from_block(ct_left ^ A.hash(g), q)
+                    Wire::from_block(ct_left ^ A.hash(g), &qM)
                 };
         
                 // evaluator's half gate
@@ -121,7 +121,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                     B.hashback(g, q)
                 } else {
                     let ct_right = gate[(q + B.color()) as usize - 2];
-                    Wire::from_block(ct_right ^ B.hash(g), q)
+                    Wire::from_block(ct_right ^ B.hash(g), &qM)
                 };
         
                 // hack for unequal mods
@@ -150,7 +150,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
         match *modulus {
             Modulus::Zq { q } => {
-                let ngates = (x.modulus() - 1) as usize;
+                let ngates = (q - 1) as usize;
                 let mut gate = Vec::with_capacity(ngates);
                 for _ in 0..ngates {
                     let block = self.channel.read_block()?;

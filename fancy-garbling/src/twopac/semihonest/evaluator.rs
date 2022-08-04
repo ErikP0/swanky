@@ -68,7 +68,10 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
         let mut lens = Vec::new();
         let mut bs = Vec::new();
         for (x, q) in inputs.iter().zip(moduli.iter()) {
-            let len = f32::from(*q).log(2.0).ceil() as usize;
+            let len: usize = match q {
+                Modulus::Zq{ q: qq } => f32::from(*qq).log(2.0).ceil() as usize,
+                Modulus::GF4 { p } => 4,
+            };
             for b in (0..len).map(|i| x & (1 << i) != 0) {
                 bs.push(b);
             }
@@ -83,7 +86,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
                 let range = start..start + len;
                 let chunk = &wires[range];
                 start += len;
-                combine(chunk, *q, self.evaluator.in_GF())
+                combine(chunk, q)
             })
             .collect::<Vec<Wire>>())
     }
@@ -91,7 +94,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
 
 fn combine(wires: &[Block], q: &Modulus) -> Wire {          // in_GF as bool because &self is not needed here
     wires.iter().enumerate().fold(Wire::zero(q), |acc, (i, w)| {
-        let w = Wire::from_block(*w, q, in_GF);
+        let w = Wire::from_block(*w, q);
         acc.plus(&w.cmul(1 << i))
     })
 }
@@ -100,7 +103,7 @@ impl<C: AbstractChannel, RNG, OT> Fancy for Evaluator<C, RNG, OT> {
     type Item = Wire;
     type Error = TwopacError;
 
-    fn constant(&mut self, x: u16, q: u16) -> Result<Self::Item, Self::Error> {
+    fn constant(&mut self, x: u16, q: &Modulus) -> Result<Self::Item, Self::Error> {
         self.evaluator.constant(x, q).map_err(Self::Error::from)
     }
 
@@ -120,7 +123,7 @@ impl<C: AbstractChannel, RNG, OT> Fancy for Evaluator<C, RNG, OT> {
         self.evaluator.mul(&x, &y).map_err(Self::Error::from)
     }
 
-    fn proj(&mut self, x: &Wire, q: u16, tt: Option<Vec<u16>>) -> Result<Self::Item, Self::Error> {
+    fn proj(&mut self, x: &Wire, q: &Modulus, tt: Option<Vec<u16>>) -> Result<Self::Item, Self::Error> {
         self.evaluator.proj(&x, q, tt).map_err(Self::Error::from)
     }
 
