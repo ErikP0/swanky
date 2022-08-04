@@ -5,7 +5,9 @@
 // See LICENSE for licensing information.
 
 use super::*;
+use crate::wire::Modulus;
 use crate::util;
+use alloc::vec::Vec;
 use itertools::Itertools;
 
 /// Convenience functions for encoding input to Fancy objects.
@@ -26,11 +28,11 @@ pub trait FancyInput {
     fn encode_many(
         &mut self,
         values: &[u16],
-        moduli: &[u16],
+        moduli: &[Modulus],
     ) -> Result<Vec<Self::Item>, Self::Error>;
 
     /// Receive many values where the input is not known.
-    fn receive_many(&mut self, moduli: &[u16]) -> Result<Vec<Self::Item>, Self::Error>;
+    fn receive_many(&mut self, moduli: &[Modulus]) -> Result<Vec<Self::Item>, Self::Error>;
 
     ////////////////////////////////////////////////////////////////////////////////
     // optional methods
@@ -39,14 +41,14 @@ pub trait FancyInput {
     ///
     /// When writing a garbler, the return value must correspond to the zero
     /// wire label.
-    fn encode(&mut self, value: u16, modulus: u16) -> Result<Self::Item, Self::Error> {
-        let mut xs = self.encode_many(&[value], &[modulus])?;
+    fn encode(&mut self, value: u16, modulus: &Modulus) -> Result<Self::Item, Self::Error> {
+        let mut xs = self.encode_many(&[value], &[*modulus])?;
         Ok(xs.remove(0))
     }
 
     /// Receive a single value.
-    fn receive(&mut self, modulus: u16) -> Result<Self::Item, Self::Error> {
-        let mut xs = self.receive_many(&[modulus])?;
+    fn receive(&mut self, modulus: &Modulus) -> Result<Self::Item, Self::Error> {
+        let mut xs = self.receive_many(&[*modulus])?;
         Ok(xs.remove(0))
     }
 
@@ -56,12 +58,14 @@ pub trait FancyInput {
         values: &[u16],
         moduli: &[u16],
     ) -> Result<Bundle<Self::Item>, Self::Error> {
-        self.encode_many(values, moduli).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
+        self.encode_many(values, moduliM).map(Bundle::new)
     }
 
     /// Receive a bundle.
     fn receive_bundle(&mut self, moduli: &[u16]) -> Result<Bundle<Self::Item>, Self::Error> {
-        self.receive_many(moduli).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
+        self.receive_many(moduliM).map(Bundle::new)
     }
 
     /// Encode many input bundles.
@@ -70,7 +74,7 @@ pub trait FancyInput {
         values: &[Vec<u16>],
         moduli: &[Vec<u16>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().collect_vec();
+        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
         let xs = values.iter().flatten().cloned().collect_vec();
         if xs.len() != qs.len() {
             return Err(
@@ -93,7 +97,7 @@ pub trait FancyInput {
         &mut self,
         moduli: &[Vec<u16>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().collect_vec();
+        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
         let mut wires = self.receive_many(&qs)?;
         let buns = moduli
             .iter()
@@ -137,6 +141,7 @@ pub trait FancyInput {
             .collect_vec();
         let qs = itertools::repeat_n(mods, values.len())
             .flatten()
+            .map(|q| Modulus::Zq { q })
             .collect_vec();
         let mut wires = self.encode_many(&xs, &qs)?;
         let buns = (0..values.len())
@@ -156,7 +161,7 @@ pub trait FancyInput {
     ) -> Result<Vec<CrtBundle<Self::Item>>, Self::Error> {
         let mods = util::factor(modulus);
         let nmods = mods.len();
-        let qs = itertools::repeat_n(mods, n).flatten().collect_vec();
+        let qs = itertools::repeat_n(mods, n).flatten().map(|q| Modulus::Zq { q }).collect_vec();
         let mut wires = self.receive_many(&qs)?;
         let buns = (0..n)
             .map(|_| {
@@ -194,7 +199,7 @@ pub trait FancyInput {
             .map(|x| util::u128_to_bits(*x, nbits))
             .flatten()
             .collect_vec();
-        let mut wires = self.encode_many(&xs, &vec![2; values.len() * nbits])?;
+        let mut wires = self.encode_many(&xs, &vec![Modulus::Zq { q:2 }; values.len() * nbits])?;
         let buns = (0..values.len())
             .map(|_| {
                 let ws = wires.drain(0..nbits).collect_vec();
@@ -210,7 +215,7 @@ pub trait FancyInput {
         ninputs: usize,
         nbits: usize,
     ) -> Result<Vec<BinaryBundle<Self::Item>>, Self::Error> {
-        let mut wires = self.receive_many(&vec![2; ninputs * nbits])?;
+        let mut wires = self.receive_many(&vec![Modulus::Zq { q:2 }; ninputs * nbits])?;
         let buns = (0..ninputs)
             .map(|_| {
                 let ws = wires.drain(0..nbits).collect_vec();

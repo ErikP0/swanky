@@ -4,7 +4,7 @@
 // Copyright © 2019 Galois, Inc.
 // See LICENSE for licensing information.
 
-use crate::{errors::TwopacError, Fancy, FancyInput, FancyReveal, Garbler as Gb, Wire};
+use crate::{errors::TwopacError, Fancy, FancyInput, FancyReveal, Garbler as Gb, Wire, Modulus};
 use ocelot::ot::Sender as OtSender;
 use rand::{CryptoRng, Rng, SeedableRng};
 use scuttlebutt::{AbstractChannel, Block, SemiHonest};
@@ -54,12 +54,15 @@ impl<
         &mut self.channel
     }
 
-    fn _evaluator_input(&mut self, delta: &Wire, q: u16) -> (Wire, Vec<(Block, Block)>) {
-        let len = f32::from(q).log(2.0).ceil() as u16;
-        let mut wire = Wire::zero(q);
+    fn _evaluator_input(&mut self, delta: &Wire, modulus: &Modulus) -> (Wire, Vec<(Block, Block)>) {
+        let len = match modulus {
+            Modulus::Zq { q: qq } => f32::from(*qq).log(2.0).ceil() as u16,
+            Modulus::GF4 { p } => 4, 
+        };
+        let mut wire = Wire::zero(modulus);
         let inputs = (0..len)
             .map(|i| {
-                let zero = Wire::rand(&mut self.rng, q);
+                let zero = Wire::rand(&mut self.rng, modulus);
                 let one = zero.plus(&delta);
                 wire = wire.plus(&zero.cmul(1 << i));   // see 7.1 in paper for binary representation labels
                 (zero.as_block(), one.as_block())
@@ -78,19 +81,19 @@ impl<
     type Item = Wire;
     type Error = TwopacError;
 
-    fn encode(&mut self, val: u16, modulus: u16) -> Result<Wire, TwopacError> {
+    fn encode(&mut self, val: u16, modulus: &Modulus) -> Result<Wire, TwopacError> {
         let (mine, theirs) = self.garbler.encode_wire(val, modulus);
         self.garbler.send_wire(&theirs)?;
         self.channel.flush()?;
         Ok(mine)
     }
 
-    fn encode_many(&mut self, vals: &[u16], moduli: &[u16]) -> Result<Vec<Wire>, TwopacError> {
+    fn encode_many(&mut self, vals: &[u16], moduli: &[Modulus]) -> Result<Vec<Wire>, TwopacError> {
         let ws = vals
             .iter()
             .zip(moduli.iter())
             .map(|(x, q)| {
-                let (mine, theirs) = self.garbler.encode_wire(*x, *q);
+                let (mine, theirs) = self.garbler.encode_wire(*x, q);
                 self.garbler.send_wire(&theirs)?;
                 Ok(mine)
             })
@@ -99,15 +102,19 @@ impl<
         ws
     }
 
-    fn receive_many(&mut self, qs: &[u16]) -> Result<Vec<Wire>, TwopacError> {
-        let n = qs.len();
-        let lens = qs.iter().map(|q| f32::from(*q).log(2.0).ceil() as usize);
+    fn receive_many(&mut self, ms: &[Modulus]) -> Result<Vec<Wire>, TwopacError> {
+        let n = ms.len();
+        let lens = ms.iter().map(|q| { match q {
+                                                    Modulus::Zq { q: qq } => f32::from(*qq).log(2.0).ceil() as usize,
+                                                    Modulus::GF4 { p } => 4, }
+                                                }
+                                );
         let mut wires = Vec::with_capacity(n);
         let mut inputs = Vec::with_capacity(lens.sum());
 
-        for q in qs.iter() {
-            let delta = self.garbler.delta(*q);
-            let (wire, input) = self._evaluator_input(&delta, *q);
+        for q in ms.iter() {
+            let delta = self.garbler.delta(q);
+            let (wire, input) = self._evaluator_input(&delta, q);
             wires.push(wire);
             for i in input.into_iter() {
                 inputs.push(i);
@@ -122,8 +129,8 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT> Fancy for Garbler<C, RNG, OT>
     type Item = Wire;
     type Error = TwopacError;
 
-    fn constant(&mut self, x: u16, q: u16) -> Result<Self::Item, Self::Error> {
-        self.garbler.constant(x, q).map_err(Self::Error::from)
+    fn constant(&mut self, x: u16, modulus: &Modulus) -> Result<Self::Item, Self::Error> {
+        self.garbler.constant(x, modulus).map_err(Self::Error::from)
     }
 
     fn add(&mut self, x: &Wire, y: &Wire) -> Result<Self::Item, Self::Error> {
@@ -142,8 +149,8 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT> Fancy for Garbler<C, RNG, OT>
         self.garbler.mul(x, y).map_err(Self::Error::from)
     }
 
-    fn proj(&mut self, x: &Wire, q: u16, tt: Option<Vec<u16>>) -> Result<Self::Item, Self::Error> {
-        self.garbler.proj(x, q, tt).map_err(Self::Error::from)
+    fn proj(&mut self, x: &Wire, modulus: &Modulus, tt: Option<Vec<u16>>) -> Result<Self::Item, Self::Error> {
+        self.garbler.proj(x, modulus, tt).map_err(Self::Error::from)
     }
 
     fn output(&mut self, x: &Self::Item) -> Result<Option<u16>, Self::Error> {

@@ -8,7 +8,7 @@ use crate::{
     errors::{EvaluatorError, FancyError},
     fancy::{Fancy, FancyReveal, HasModulus},
     util::{output_tweak, tweak, tweak2},
-    wire::Wire,
+    wire::{Wire, Modulus},
 };
 use scuttlebutt::AbstractChannel;
 
@@ -20,17 +20,15 @@ pub struct Evaluator<C> {
     channel: C,
     current_gate: usize,
     current_output: usize,
-    in_GF: bool,
 }
 
 impl<C: AbstractChannel> Evaluator<C> {
     /// Create a new `Evaluator`.
-    pub fn new(channel: C, in_GF: bool) -> Self {
+    pub fn new(channel: C) -> Self {
         Evaluator {
             channel,
             current_gate: 0,
             current_output: 0,
-            in_GF,
         }
     }
 
@@ -48,15 +46,10 @@ impl<C: AbstractChannel> Evaluator<C> {
         current
     }
 
-    /// Extract the boolean that indicates if the operations happen in a finite field or not.
-    pub fn in_GF(&mut self) -> bool {
-        self.in_GF
-    }
-
     /// Read a Wire from the reader.
-    pub fn read_wire(&mut self, modulus: u16) -> Result<Wire, EvaluatorError> {
+    pub fn read_wire(&mut self, modulus: &Modulus) -> Result<Wire, EvaluatorError> {
         let block = self.channel.read_block()?;
-        Ok(Wire::from_block(block, modulus, self.in_GF))
+        Ok(Wire::from_block(block, modulus))
     }
 }
 
@@ -73,8 +66,8 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     type Item = Wire;
     type Error = EvaluatorError;
 
-    fn constant(&mut self, _: u16, q: u16) -> Result<Wire, EvaluatorError> {
-        self.read_wire(q)
+    fn constant(&mut self, _: u16, modulus: &Modulus) -> Result<Wire, EvaluatorError> {
+        self.read_wire(modulus)
     }
 
     fn add(&mut self, x: &Wire, y: &Wire) -> Result<Wire, EvaluatorError> {
@@ -96,83 +89,115 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     }
 
     fn mul(&mut self, A: &Wire, B: &Wire) -> Result<Wire, EvaluatorError> {
-        if A.modulus() < B.modulus() {
-            return self.mul(B, A);
-        }
-        let q = A.modulus();
-        let qb = B.modulus();
-        let unequal = q != qb;
-        let ngates = q as usize + qb as usize - 2 + unequal as usize;
-        let mut gate = Vec::with_capacity(ngates);
-        {
-            for _ in 0..ngates {
-                let block = self.channel.read_block()?;
-                gate.push(block);
+        match (A.modulus(), B.modulus()) {
+            (Modulus::Zq { q }, Modulus::Zq { q: qb }) => {
+                if q < qb {
+                    return self.mul(B, A);
+                }
+                let qM = A.modulus();
+                // let qb = B.modulus();
+                let unequal = q != qb;
+                let ngates = q as usize + qb as usize - 2 + unequal as usize;
+                let mut gate = Vec::with_capacity(ngates);
+                {
+                    for _ in 0..ngates {
+                        let block = self.channel.read_block()?;
+                        gate.push(block);
+                    }
+                }
+                let gate_num = self.current_gate();
+                let g = tweak2(gate_num as u64, 0);
+        
+                // garbler's half gate
+                let L = if A.color() == 0 {
+                    A.hashback(g, q)
+                } else {
+                    let ct_left = gate[A.color() as usize - 1];
+                    Wire::from_block(ct_left ^ A.hash(g), &qM)
+                };
+        
+                // evaluator's half gate
+                let R = if B.color() == 0 {
+                    B.hashback(g, q)
+                } else {
+                    let ct_right = gate[(q + B.color()) as usize - 2];
+                    Wire::from_block(ct_right ^ B.hash(g), &qM)
+                };
+        
+                // hack for unequal mods
+                let new_b_color = if unequal {
+                    let minitable = *gate.last().unwrap();
+                    let ct = u128::from(minitable) >> (B.color() * 16);
+                    let pt = u128::from(B.hash(tweak2(gate_num as u64, 1))) ^ ct;
+                    pt as u16
+                } else {
+                    B.color()
+                };
+        
+                let res = L.plus_mov(&R.plus_mov(&A.cmul(new_b_color)));
+                Ok(res)
+            }
+            (Modulus::GF4 { p }, Modulus::GF4 { p: pb }) => {
+                // TODO
+            }
+            _ => {
+                Err()
             }
         }
-        let gate_num = self.current_gate();
-        let g = tweak2(gate_num as u64, 0);
-
-        // garbler's half gate
-        let L = if A.color() == 0 {
-            A.hashback(g, q)
-        } else {
-            let ct_left = gate[A.color() as usize - 1];
-            Wire::from_block(ct_left ^ A.hash(g), q, self.in_GF)
-        };
-
-        // evaluator's half gate
-        let R = if B.color() == 0 {
-            B.hashback(g, q)
-        } else {
-            let ct_right = gate[(q + B.color()) as usize - 2];
-            Wire::from_block(ct_right ^ B.hash(g), q, self.in_GF)
-        };
-
-        // hack for unequal mods
-        let new_b_color = if unequal {
-            let minitable = *gate.last().unwrap();
-            let ct = u128::from(minitable) >> (B.color() * 16);
-            let pt = u128::from(B.hash(tweak2(gate_num as u64, 1))) ^ ct;
-            pt as u16
-        } else {
-            B.color()
-        };
-
-        let res = L.plus_mov(&R.plus_mov(&A.cmul(new_b_color)));
-        Ok(res)
+        
     }
 
-    fn proj(&mut self, x: &Wire, q: u16, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
-        let ngates = (x.modulus() - 1) as usize;
-        let mut gate = Vec::with_capacity(ngates);
-        for _ in 0..ngates {
-            let block = self.channel.read_block()?;
-            gate.push(block);
-        }
-        let t = tweak(self.current_gate());
-        if x.color() == 0 {
-            Ok(x.hashback(t, q))
-        } else {
-            let ct = gate[x.color() as usize - 1];
-            Ok(Wire::from_block(ct ^ x.hash(t), q, self.in_GF))
+    fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
+        match *modulus {
+            Modulus::Zq { q } => {
+                let ngates = (q - 1) as usize;
+                let mut gate = Vec::with_capacity(ngates);
+                for _ in 0..ngates {
+                    let block = self.channel.read_block()?;
+                    gate.push(block);
+                }
+                let t = tweak(self.current_gate());
+                if x.color() == 0 {
+                    Ok(x.hashback(t, q))
+                } else {
+                    let ct = gate[x.color() as usize - 1];
+                    Ok(Wire::from_block(ct ^ x.hash(t), q))
+                }
+            }
+            Modulus::GF4 { p } => {
+                // TODO
+            }
         }
     }
 
     fn output(&mut self, x: &Wire) -> Result<Option<u16>, EvaluatorError> {
         let q = x.modulus();
         let i = self.current_output();
+        let mut decoded = None;
 
         // Receive the output ciphertext from the garbler
-        let ct = self.channel.read_blocks(q as usize)?;
-
-        // Attempt to brute force x using the output ciphertext
-        let mut decoded = None;
-        for k in 0..q {
-            let hashed_wire = x.hash(output_tweak(i, k));
-            if hashed_wire == ct[k as usize] {
-                decoded = Some(k);
-                break;
+        match q {
+            Modulus::Zq { q } => {
+                let ct = self.channel.read_blocks(q as usize)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..q {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
+            },
+            Modulus::GF4 { p } => {     // not sure about this
+                let ct = self.channel.read_blocks(16)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..16 {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
             }
         }
 
