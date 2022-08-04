@@ -296,20 +296,20 @@ impl Circuit {
 
     /// Return the modulus of the gate indexed by `i`.
     #[inline]
-    pub fn modulus(&self, i: usize) -> u16 {
+    pub fn modulus(&self, i: usize) -> Modulus {
         self.gate_moduli[i]
     }
 
     /// Return the modulus of the garbler input indexed by `i`.
     #[inline]
-    pub fn garbler_input_mod(&self, i: usize) -> u16 {
+    pub fn garbler_input_mod(&self, i: usize) -> Modulus {
         let r = self.garbler_input_refs[i];
         r.modulus()
     }
 
     /// Return the modulus of the evaluator input indexed by `i`.
     #[inline]
-    pub fn evaluator_input_mod(&self, i: usize) -> u16 {
+    pub fn evaluator_input_mod(&self, i: usize) -> Modulus {
         let r = self.evaluator_input_refs[i];
         r.modulus()
     }
@@ -320,7 +320,7 @@ pub struct CircuitBuilder {
     next_ref_ix: usize,
     next_garbler_input_id: usize,
     next_evaluator_input_id: usize,
-    const_map: HashMap<(u16, u16), CircuitRef>,
+    const_map: HashMap<(u16, Modulus), CircuitRef>,
     circ: Circuit,
 }
 
@@ -328,13 +328,13 @@ impl Fancy for CircuitBuilder {
     type Item = CircuitRef;
     type Error = CircuitBuilderError;
 
-    fn constant(&mut self, val: u16, modulus: u16) -> Result<CircuitRef, Self::Error> {
-        match self.const_map.get(&(val, modulus)) {
+    fn constant(&mut self, val: u16, modulus: &Modulus) -> Result<CircuitRef, Self::Error> {
+        match self.const_map.get(&(val, *modulus)) {
             Some(&r) => Ok(r),
             None => {
                 let gate = Gate::Constant { val };
-                let r = self.gate(gate, modulus);
-                self.const_map.insert((val, modulus), r);
+                let r = self.gate(gate, *modulus);
+                self.const_map.insert((val, *modulus), r);
                 self.circ.const_refs.push(r);
                 Ok(r)
             }
@@ -379,11 +379,17 @@ impl Fancy for CircuitBuilder {
     fn proj(
         &mut self,
         xref: &CircuitRef,
-        output_modulus: u16,
+        output_modulus: &Modulus,
         tt: Option<Vec<u16>>,
     ) -> Result<CircuitRef, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
-        if tt.len() < xref.modulus() as usize || !tt.iter().all(|&x| x < output_modulus) {
+        if tt.len() < match xref.modulus() {
+                        Modulus::Zq { q } => q as usize,
+                        Modulus::GF4 { .. } => 16,
+        } || !tt.iter().all(|&x| x < match output_modulus {
+                                        Modulus::Zq { q } => *q,
+                                        Modulus::GF4 { .. } => 16,
+        }) {
             return Err(Self::Error::from(FancyError::InvalidTruthTable));
         }
         let gate = Gate::Proj {
@@ -458,7 +464,7 @@ impl CircuitBuilder {
         current
     }
 
-    fn gate(&mut self, gate: Gate, modulus: u16) -> CircuitRef {
+    fn gate(&mut self, gate: Gate, modulus: Modulus) -> CircuitRef {
         self.circ.gates.push(gate);
         self.circ.gate_moduli.push(modulus);
         let ix = self.get_next_ref_ix();

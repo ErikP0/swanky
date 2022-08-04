@@ -12,6 +12,7 @@ use crate::{
         HasModulus,
     },
     util,
+    Modulus,
 };
 use itertools::Itertools;
 use std::ops::{Deref, DerefMut};

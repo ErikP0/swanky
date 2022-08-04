@@ -9,7 +9,7 @@
 //! Note: all number representations in this library are little-endian.
 
 use std::convert::TryInto;
-use crate::Wire;
+use crate::{Wire, Modulus};
 #[cfg(feature = "nightly")]
 use core::arch::x86_64::*;
 use itertools::Itertools;
@@ -224,10 +224,10 @@ pub fn u8_to_bits(x: u8, n: usize) -> Vec<u8> {
 pub fn u8_from_bits(bs: &[u8]) -> u8 {
     let mut x = 0;
     for &b in bs.iter().skip(1).rev() {
-        x += b as u128;
+        x += b as u8;
         x *= 2;
     }
-    x += bs[0] as u128;
+    x += bs[0] as u8;
     x
 }
 
@@ -422,11 +422,11 @@ pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
 }
 
 // Generate deltas for GC
-pub fn generate_deltas(primes: &[u16]) -> HashMap<u16, Wire> {
+pub fn generate_deltas(moduli: &[Modulus]) -> HashMap<Modulus, Wire> {
     let mut deltas = HashMap::new();
     let mut rng = rand::thread_rng();
-    for q in primes {
-        deltas.insert(*q, Wire::rand_delta(&mut rng, *q));
+    for m in moduli {
+        deltas.insert(*m, Wire::rand_delta(&mut rng, m));
     }
     deltas
 }
