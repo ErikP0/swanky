@@ -7,7 +7,6 @@
 use super::*;
 use crate::wire::Modulus;
 use crate::util;
-use alloc::vec::Vec;
 use itertools::Itertools;
 
 /// Convenience functions for encoding input to Fancy objects.
@@ -58,14 +57,14 @@ pub trait FancyInput {
         values: &[u16],
         moduli: &[u16],
     ) -> Result<Bundle<Self::Item>, Self::Error> {
-        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
-        self.encode_many(values, moduliM).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec();
+        self.encode_many(values, &moduliM).map(Bundle::new)
     }
 
     /// Receive a bundle.
     fn receive_bundle(&mut self, moduli: &[u16]) -> Result<Bundle<Self::Item>, Self::Error> {
-        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
-        self.receive_many(moduliM).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec();
+        self.receive_many(&moduliM).map(Bundle::new)
     }
 
     /// Encode many input bundles.

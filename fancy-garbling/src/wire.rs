@@ -57,7 +57,7 @@ pub enum Wire {
 }
 
 /// Modulus type, either an integer modulus for Zq, or an irreducible polynomial representation for GF(2^k)
-#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Sized)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash)]
 // #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub enum Modulus {
     /// Integer modulus for Zq.
@@ -187,7 +187,7 @@ impl Wire {
     pub fn from_block(inp: Block, modulus: &Modulus) -> Self {
         match *modulus {
             Modulus::Zq { q } => Wire::from_block_mod(inp, q),
-            Modulus::GF4 { p } => Wire::from_block_GF(inp, p),
+            Modulus::GF4 { p } => Wire::from_block_GF4(inp, p),
         }
     }
 
@@ -222,9 +222,15 @@ impl Wire {
         }
     }
 
-    fn from_block_GF(inp: Block, p: u8) -> Self {
-        // TODO
-        Wire::GF4 { p, elts: () }
+    fn from_block_GF4(inp: Block, p: u8) -> Self {
+        let inp = u128::from(inp);
+        let mut inp_shift = inp;
+        let mut elts: Vec<u16> = Vec::with_capacity(32);
+        for _ in 0..32 {
+            elts.push((inp & 0b1111) as u16);
+            inp_shift >>= 4;
+        }
+        Wire::GF4 { p, elts }
     }
 
     /// Pack the wire into a `Block`.

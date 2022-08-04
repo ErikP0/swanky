@@ -221,7 +221,7 @@ pub trait BinaryGadgets: Fancy + BundleGadgets {
             .collect::<Result<_, _>>()
             .map(BinaryBundle::new)?;
 
-        let zero = self.constant(0, 2)?;
+        let zero = self.constant(0, &Modulus::Zq { q:2 })?;
         sum.pad(&zero, 1);
 
         for i in 1..xwires.len() {
