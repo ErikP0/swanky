@@ -6,6 +6,8 @@
 
 use super::*;
 use crate::util;
+use crate::wire::Modulus;
+use alloc::vec::Vec;
 use itertools::Itertools;
 
 /// Convenience functions for encoding input to Fancy objects.
@@ -26,11 +28,11 @@ pub trait FancyInput {
     fn encode_many(
         &mut self,
         values: &[u16],
-        moduli: &[u16],
+        moduli: &[Modulus],
     ) -> Result<Vec<Self::Item>, Self::Error>;
 
     /// Receive many values where the input is not known.
-    fn receive_many(&mut self, moduli: &[u16]) -> Result<Vec<Self::Item>, Self::Error>;
+    fn receive_many(&mut self, moduli: &[Modulus]) -> Result<Vec<Self::Item>, Self::Error>;
 
     ////////////////////////////////////////////////////////////////////////////////
     // optional methods
@@ -39,14 +41,14 @@ pub trait FancyInput {
     ///
     /// When writing a garbler, the return value must correspond to the zero
     /// wire label.
-    fn encode(&mut self, value: u16, modulus: u16) -> Result<Self::Item, Self::Error> {
-        let mut xs = self.encode_many(&[value], &[modulus])?;
+    fn encode(&mut self, value: u16, modulus: &Modulus) -> Result<Self::Item, Self::Error> {
+        let mut xs = self.encode_many(&[value], &[*modulus])?;
         Ok(xs.remove(0))
     }
 
     /// Receive a single value.
-    fn receive(&mut self, modulus: u16) -> Result<Self::Item, Self::Error> {
-        let mut xs = self.receive_many(&[modulus])?;
+    fn receive(&mut self, modulus: &Modulus) -> Result<Self::Item, Self::Error> {
+        let mut xs = self.receive_many(&[*modulus])?;
         Ok(xs.remove(0))
     }
 
@@ -56,12 +58,14 @@ pub trait FancyInput {
         values: &[u16],
         moduli: &[u16],
     ) -> Result<Bundle<Self::Item>, Self::Error> {
-        self.encode_many(values, moduli).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
+        self.encode_many(values, moduliM).map(Bundle::new)
     }
 
     /// Receive a bundle.
     fn receive_bundle(&mut self, moduli: &[u16]) -> Result<Bundle<Self::Item>, Self::Error> {
-        self.receive_many(moduli).map(Bundle::new)
+        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect();
+        self.receive_many(moduliM).map(Bundle::new)
     }
 
     /// Encode many input bundles.
