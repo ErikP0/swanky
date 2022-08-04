@@ -173,17 +173,31 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     fn output(&mut self, x: &Wire) -> Result<Option<u16>, EvaluatorError> {
         let q = x.modulus();
         let i = self.current_output();
+        let mut decoded = None;
 
         // Receive the output ciphertext from the garbler
-        let ct = self.channel.read_blocks(q as usize)?;
-
-        // Attempt to brute force x using the output ciphertext
-        let mut decoded = None;
-        for k in 0..q {
-            let hashed_wire = x.hash(output_tweak(i, k));
-            if hashed_wire == ct[k as usize] {
-                decoded = Some(k);
-                break;
+        match q {
+            Modulus::Zq { q } => {
+                let ct = self.channel.read_blocks(q as usize)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..q {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
+            },
+            Modulus::GF4 { p } => {     // not sure about this
+                let ct = self.channel.read_blocks(16)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..16 {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
             }
         }
 
