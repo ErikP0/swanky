@@ -208,6 +208,29 @@ pub fn u128_from_bits(bs: &[u16]) -> u128 {
     x
 }
 
+pub fn u8_to_bits(x: u8, n: usize) -> Vec<u8> {
+    let mut bits = Vec::with_capacity(n);
+    let mut y = x;
+    for _ in 0..n {
+        let b = y & 1;
+        bits.push(b);
+        y -= b;
+        y /= 2;
+    }
+    bits
+}
+
+/// Convert into a u128 from the "bits" as u16. Assumes each "bit" is 0 or 1.
+pub fn u8_from_bits(bs: &[u8]) -> u8 {
+    let mut x = 0;
+    for &b in bs.iter().skip(1).rev() {
+        x += b as u128;
+        x *= 2;
+    }
+    x += bs[0] as u128;
+    x
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // primes & crt
 
@@ -380,8 +403,22 @@ pub fn is_power_of_2(x: u16) -> bool {
 }
 
 /// Divides a u16 that represents a polynomial by a quotient field's irreducible polynomial p.
-pub fn reduce_p(x: u16, p: u8) -> u16 {
-    // TODO
+/// p = X^4 + X + 1
+///  
+/// [c7 c6 c5 c4 c3 c2 c1 c0] ==> [0 0 0 0 C3 C2 C1 C0] 
+/// C0 = c0 + c4 
+/// C1 = c1 + c4 + c5
+/// C2 = c2 + c5 + c6
+/// C3 = c3 + c6
+pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
+    let mut xbits = u8_to_bits(x, 8);
+
+    xbits[0] ^= xbits[4];
+    xbits[1] ^= xbits[4] ^ xbits[5];
+    xbits[2] ^= xbits[5] ^ xbits[6];
+    xbits[3] ^= xbits[6];
+
+    u8_from_bits(&xbits)
 }
 
 // Generate deltas for GC
