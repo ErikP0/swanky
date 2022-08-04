@@ -415,7 +415,10 @@ impl Wire {
                     .for_each(|d| *d = (*d as u32 * c as u32 % *q as u32) as u16);
             },
             Wire::GF4 { p, elts } => {
-                // TODO
+                elts.iter_mut().map(|d| {
+                    *d *= c;
+                    util::reduce_p_GF4(*d as u8, p) as u16
+                });
             }
         }
         self
