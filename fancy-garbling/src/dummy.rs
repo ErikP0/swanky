@@ -11,7 +11,7 @@
 
 use crate::{
     errors::{DummyError, FancyError},
-    fancy::{Fancy, FancyInput, FancyReveal, HasModulus},
+    fancy::{Fancy, FancyInput, FancyReveal, HasModulus}, Modulus, util,
 };
 
 /// Simple struct that performs the fancy computation over `u16`.
@@ -21,18 +21,18 @@ pub struct Dummy {}
 #[derive(Clone, Debug)]
 pub struct DummyVal {
     val: u16,
-    modulus: u16,
+    modulus: Modulus,
 }
 
 impl HasModulus for DummyVal {
-    fn modulus(&self) -> u16 {
+    fn modulus(&self) -> Modulus {
         self.modulus
     }
 }
 
 impl DummyVal {
     /// Create a new DummyVal.
-    pub fn new(val: u16, modulus: u16) -> Self {
+    pub fn new(val: u16, modulus: Modulus) -> Self {
         Self { val, modulus }
     }
 
@@ -54,12 +54,12 @@ impl FancyInput for Dummy {
     type Error = DummyError;
 
     /// Encode a single dummy value.
-    fn encode(&mut self, value: u16, modulus: u16) -> Result<DummyVal, DummyError> {
-        Ok(DummyVal::new(value, modulus))
+    fn encode(&mut self, value: u16, modulus: &Modulus) -> Result<DummyVal, DummyError> {
+        Ok(DummyVal::new(value, *modulus))
     }
 
     /// Encode a slice of inputs and a slice of moduli as DummyVals.
-    fn encode_many(&mut self, xs: &[u16], moduli: &[u16]) -> Result<Vec<DummyVal>, DummyError> {
+    fn encode_many(&mut self, xs: &[u16], moduli: &[Modulus]) -> Result<Vec<DummyVal>, DummyError> {
         if xs.len() != moduli.len() {
             return Err(DummyError::EncodingError);
         }
@@ -70,7 +70,7 @@ impl FancyInput for Dummy {
             .collect())
     }
 
-    fn receive_many(&mut self, _moduli: &[u16]) -> Result<Vec<DummyVal>, DummyError> {
+    fn receive_many(&mut self, _moduli: &[Modulus]) -> Result<Vec<DummyVal>, DummyError> {
         // Receive is undefined for Dummy which is a single party "protocol"
         Err(DummyError::EncodingError)
     }
@@ -80,16 +80,22 @@ impl Fancy for Dummy {
     type Item = DummyVal;
     type Error = DummyError;
 
-    fn constant(&mut self, val: u16, modulus: u16) -> Result<DummyVal, Self::Error> {
-        Ok(DummyVal { val, modulus })
+    fn constant(&mut self, val: u16, modulus: &Modulus) -> Result<DummyVal, Self::Error> {
+        Ok(DummyVal::new(val, *modulus))
     }
 
     fn add(&mut self, x: &DummyVal, y: &DummyVal) -> Result<DummyVal, Self::Error> {
         if x.modulus() != y.modulus() {
             return Err(Self::Error::from(FancyError::UnequalModuli));
         }
+        let result = if let Modulus::Zq { q } = x.modulus() {
+            (x.val + y.val) % q
+        } else {
+            x.val ^ y.val
+        };
+
         Ok(DummyVal {
-            val: (x.val + y.val) % x.modulus,
+            val: result,
             modulus: x.modulus,
         })
     }
@@ -98,22 +104,58 @@ impl Fancy for Dummy {
         if x.modulus() != y.modulus() {
             return Err(Self::Error::from(FancyError::UnequalModuli));
         }
+
+        let result = if let Modulus::Zq { q } = x.modulus() {
+            (q + x.val - y.val) % q
+        } else {
+            // In F2 subtraction is the same as addition ! 
+            x.val ^ y.val
+        };
+
+
+
         Ok(DummyVal {
-            val: (x.modulus + x.val - y.val) % x.modulus,
+            val: result,
             modulus: x.modulus,
         })
     }
 
     fn cmul(&mut self, x: &DummyVal, c: u16) -> Result<DummyVal, Self::Error> {
+
+
+        let result = match x.modulus() {
+            Modulus::Zq {q} => (x.val * c) % q,
+            Modulus::GF4 { p } => {
+                x.val *= c;
+                util::reduce_p_GF4(x.val as u8, p ) as u16
+            },
+        };
+
+        
         Ok(DummyVal {
-            val: (x.val * c) % x.modulus,
+            val: result,
             modulus: x.modulus,
         })
     }
 
     fn mul(&mut self, x: &DummyVal, y: &DummyVal) -> Result<DummyVal, Self::Error> {
+        if x.modulus() != y.modulus() {
+            return Err(Self::Error::from(FancyError::UnequalModuli));
+        }
+
+        let result = match x.modulus() {
+            Modulus::Zq { q } => (x.val * y.val) % q,
+            Modulus::GF4 { p } => {
+                x.val *= y.val;
+                util::reduce_p_GF4(x.val as u8, p ) as u16
+            },
+        };
+
+
+
+
         Ok(DummyVal {
-            val: x.val * y.val % x.modulus,
+            val: result,
             modulus: x.modulus,
         })
     }
@@ -121,15 +163,34 @@ impl Fancy for Dummy {
     fn proj(
         &mut self,
         x: &DummyVal,
-        modulus: u16,
+        modulus: &Modulus,
         tt: Option<Vec<u16>>,
     ) -> Result<DummyVal, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
-        if tt.len() < x.modulus() as usize || !tt.iter().all(|&x| x < modulus) {
-            return Err(Self::Error::from(FancyError::InvalidTruthTable));
+        let xmodulus = match x.modulus() {
+            Modulus::Zq { q } => q,
+            Modulus::GF4 { p } => p as u16,
+        };
+
+        match *modulus {
+            Modulus::Zq { q } => {
+                if tt.len() < xmodulus as usize || !tt.iter().all(|&x| x < q) {
+                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
+                }
+            },
+            Modulus::GF4 { p } => {
+                if tt.len() < xmodulus as usize || !tt.iter().all(|&x| x < p as u16) {
+                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
+                }
+            }
         }
+
+
+
+
+       
         let val = tt[x.val as usize];
-        Ok(DummyVal { val, modulus })
+        Ok(DummyVal { val, modulus: *modulus })
     }
 
     fn output(&mut self, x: &DummyVal) -> Result<Option<u16>, Self::Error> {
@@ -458,7 +519,7 @@ mod bundle {
             let mut d = Dummy::new();
             let out;
             {
-                let b = d.encode(b as u16, 2).unwrap();
+                let b = d.encode(b as u16, &Modulus::Zq { q: (2) }).unwrap();
                 let x = d.crt_encode(x, q).unwrap();
                 let z = d.mask(&b, &x).unwrap().into();
                 out = d.crt_output(&z).unwrap().unwrap();
@@ -561,7 +622,7 @@ mod bundle {
                         util::as_mixed_radix(Q - 1, &mods)
                             .into_iter()
                             .zip(&mods)
-                            .map(|(x, q)| DummyVal::new(x, *q))
+                            .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: (*q) }))
                             .collect_vec(),
                     )
                 })
@@ -589,7 +650,7 @@ mod bundle {
                             util::as_mixed_radix(x, &mods)
                                 .into_iter()
                                 .zip(&mods)
-                                .map(|(x, q)| DummyVal::new(x, *q))
+                                .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: (*q) }))
                                 .collect_vec(),
                         )
                     })
