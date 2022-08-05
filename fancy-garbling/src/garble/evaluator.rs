@@ -150,8 +150,8 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
         let q: u16;
         
-        if let Modulus::Zq { q } = *modulus {
-            q = q;
+        if let Modulus::Zq { q: qq } = *modulus {
+            q = qq;
         }
         else if let Modulus::GF4 { p } = *modulus {
             q = p as u16;
@@ -192,7 +192,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                     }
                 }
             },
-            Modulus::GF4 { p } => {     // not sure about this
+            Modulus::GF4 { .. } => {     // not sure about this
                 let ct = self.channel.read_blocks(16)?;
                 // Attempt to brute force x using the output ciphertext
                 for k in 0..16 {

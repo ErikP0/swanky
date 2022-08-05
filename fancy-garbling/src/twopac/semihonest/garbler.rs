@@ -57,7 +57,7 @@ impl<
     fn _evaluator_input(&mut self, delta: &Wire, modulus: &Modulus) -> (Wire, Vec<(Block, Block)>) {
         let len = match modulus {
             Modulus::Zq { q: qq } => f32::from(*qq).log(2.0).ceil() as u16,
-            Modulus::GF4 { p } => 4, 
+            Modulus::GF4 { .. } => 4, 
         };
         let mut wire = Wire::zero(modulus);
         let inputs = (0..len)
@@ -106,7 +106,7 @@ impl<
         let n = ms.len();
         let lens = ms.iter().map(|q| { match q {
                                                     Modulus::Zq { q: qq } => f32::from(*qq).log(2.0).ceil() as usize,
-                                                    Modulus::GF4 { p } => 4, }
+                                                    Modulus::GF4 { .. } => 4, }
                                                 }
                                 );
         let mut wires = Vec::with_capacity(n);

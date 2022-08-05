@@ -70,7 +70,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
         for (x, q) in inputs.iter().zip(moduli.iter()) {
             let len: usize = match q {
                 Modulus::Zq{ q: qq } => f32::from(*qq).log(2.0).ceil() as usize,
-                Modulus::GF4 { p } => 4,
+                Modulus::GF4 { .. } => 4,
             };
             for b in (0..len).map(|i| x & (1 << i) != 0) {
                 bs.push(b);

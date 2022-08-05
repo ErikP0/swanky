@@ -118,7 +118,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
         modulus: u128,
     ) -> Result<(CrtBundle<Wire>, CrtBundle<Wire>), GarblerError> {
         let ms = crate::util::factor(modulus);
-        let msM = ms.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>();
+        let msM = ms.iter().map(|q| Modulus::Zq { q: *q }).collect::<Vec<_>>();
         let xs = crate::util::crt(val, &ms);
         let (gbs, evs) = self.encode_many_wires(&xs, &msM)?;
         Ok((CrtBundle::new(gbs), CrtBundle::new(evs)))
@@ -306,11 +306,11 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let tt = tt.ok_or(GarblerError::TruthTableRequired)?;
 
         let mod_in = A.modulus();
-        let mut q_in:u16 = 0; let mut q_out:u16 = 0;
-        let mut Din: Wire; let mut Dout: Wire;
+        let q_in:u16; let q_out:u16;
+        let Din: Wire; let Dout: Wire;
 
-        if let (Modulus::Zq { q: q_in}, Modulus::Zq { q: q_out }) = (mod_in, *mod_out) {
-            (q_in, q_out) = (q_in, q_out);
+        if let (Modulus::Zq { q: q_i}, Modulus::Zq { q: q_o }) = (mod_in, *mod_out) {
+            (q_in, q_out) = (q_i, q_o);
             Din = self.delta(&Modulus::Zq { q: q_in});
             Dout = self.delta(&Modulus::Zq { q: q_out });
         }
