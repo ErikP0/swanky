@@ -126,8 +126,8 @@ impl Fancy for Dummy {
         let result = match x.modulus() {
             Modulus::Zq {q} => (x.val * c) % q,
             Modulus::GF4 { p } => {
-                x.val *= c;
-                util::reduce_p_GF4(x.val as u8, p ) as u16
+                let temp = x.val * c;
+                util::reduce_p_GF4(temp as u8, p ) as u16
             },
         };
 
@@ -146,8 +146,8 @@ impl Fancy for Dummy {
         let result = match x.modulus() {
             Modulus::Zq { q } => (x.val * y.val) % q,
             Modulus::GF4 { p } => {
-                x.val *= y.val;
-                util::reduce_p_GF4(x.val as u8, p ) as u16
+                let temp = x.val * y.val;
+                util::reduce_p_GF4(temp as u8, p ) as u16
             },
         };
 
