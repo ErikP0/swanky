@@ -6,7 +6,7 @@
 
 //! `Informer` runs a fancy computation and learns information from it.
 
-use crate::fancy::{Fancy, FancyInput, FancyReveal, HasModulus};
+use crate::{fancy::{Fancy, FancyInput, FancyReveal, HasModulus}, Modulus};
 use std::collections::{HashMap, HashSet};
 
 /// Implements `Fancy`. Used to learn information about a `Fancy` computation in
@@ -20,9 +20,9 @@ pub struct Informer<F: Fancy> {
 /// The statistics revealed by the informer.
 #[derive(Clone, Debug)]
 pub struct InformerStats {
-    garbler_input_moduli: Vec<u16>,
-    evaluator_input_moduli: Vec<u16>,
-    constants: HashSet<(u16, u16)>,
+    garbler_input_moduli: Vec<Modulus>,
+    evaluator_input_moduli: Vec<Modulus>,
+    constants: HashSet<(u16, Modulus)>,
     outputs: Vec<u16>,
     nadds: usize,
     nsubs: usize,
@@ -30,7 +30,7 @@ pub struct InformerStats {
     nmuls: usize,
     nprojs: usize,
     nciphertexts: usize,
-    moduli: HashMap<u16, usize>,
+    moduli: HashMap<Modulus, usize>,
 }
 
 impl InformerStats {
@@ -40,7 +40,7 @@ impl InformerStats {
     }
 
     /// Moduli of garbler inputs in the fancy computation.
-    pub fn garbler_input_moduli(&self) -> Vec<u16> {
+    pub fn garbler_input_moduli(&self) -> Vec<Modulus> {
         self.garbler_input_moduli.clone()
     }
 
@@ -50,7 +50,7 @@ impl InformerStats {
     }
 
     /// Moduli of evaluator inputs in the fancy computation.
-    pub fn evaluator_input_moduli(&self) -> Vec<u16> {
+    pub fn evaluator_input_moduli(&self) -> Vec<Modulus> {
         self.evaluator_input_moduli.clone()
     }
 
@@ -135,7 +135,7 @@ impl std::fmt::Display for InformerStats {
         // dependent on the random one. This is for each input bit, so for
         // modulus `q` we need to do `log2(q)` OTs.
         let comm = self.evaluator_input_moduli.iter().fold(0.0, |acc, q| {
-            acc + (*q as f64).log2().ceil() * 384.0 / 1000.0
+            acc + (q.size() as f64).log2().ceil() * 384.0 / 1000.0
         });
 
         writeln!(
@@ -213,8 +213,8 @@ impl<F: Fancy> Informer<F> {
         self.stats.clone()
     }
 
-    fn update_moduli(&mut self, q: u16) {
-        let entry = self.stats.moduli.entry(q).or_insert(0);
+    fn update_moduli(&mut self, q: &Modulus) {
+        let entry = self.stats.moduli.entry(*q).or_insert(0);
         *entry += 1;
     }
 }
@@ -225,7 +225,7 @@ impl<F: Fancy + FancyInput<Item = <F as Fancy>::Item, Error = <F as Fancy>::Erro
     type Item = <F as Fancy>::Item;
     type Error = <F as Fancy>::Error;
 
-    fn receive_many(&mut self, moduli: &[u16]) -> Result<Vec<Self::Item>, Self::Error> {
+    fn receive_many(&mut self, moduli: &[Modulus]) -> Result<Vec<Self::Item>, Self::Error> {
         self.stats
             .garbler_input_moduli
             .extend(moduli.iter().cloned());
@@ -236,7 +236,7 @@ impl<F: Fancy + FancyInput<Item = <F as Fancy>::Item, Error = <F as Fancy>::Erro
     fn encode_many(
         &mut self,
         values: &[u16],
-        moduli: &[u16],
+        moduli: &[Modulus],
     ) -> Result<Vec<Self::Item>, Self::Error> {
         self.stats
             .garbler_input_moduli
@@ -249,8 +249,8 @@ impl<F: Fancy> Fancy for Informer<F> {
     type Item = F::Item;
     type Error = F::Error;
 
-    fn constant(&mut self, val: u16, q: u16) -> Result<Self::Item, Self::Error> {
-        self.stats.constants.insert((val, q));
+    fn constant(&mut self, val: u16, q: &Modulus) -> Result<Self::Item, Self::Error> {
+        self.stats.constants.insert((val, *q));
         self.update_moduli(q);
         self.underlying.constant(val, q)
     }
@@ -262,55 +262,55 @@ impl<F: Fancy> Fancy for Informer<F> {
     fn add(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
         let result = self.underlying.add(x, y)?;
         self.stats.nadds += 1;
-        self.update_moduli(x.modulus());
+        self.update_moduli(&x.modulus());
         Ok(result)
     }
 
     fn sub(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
         let result = self.underlying.sub(x, y)?;
         self.stats.nsubs += 1;
-        self.update_moduli(x.modulus());
+        self.update_moduli(&x.modulus());
         Ok(result)
     }
 
     fn cmul(&mut self, x: &Self::Item, y: u16) -> Result<Self::Item, Self::Error> {
         let result = self.underlying.cmul(x, y)?;
         self.stats.ncmuls += 1;
-        self.update_moduli(x.modulus());
+        self.update_moduli(&x.modulus());
         Ok(result)
     }
 
     fn mul(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if x.modulus() < y.modulus() {
+        if x.modulus().size() < y.modulus().size() {
             return self.mul(y, x);
         }
         let result = self.underlying.mul(x, y)?;
         self.stats.nmuls += 1;
-        self.stats.nciphertexts += x.modulus() as usize + y.modulus() as usize - 2;
+        self.stats.nciphertexts += x.modulus().size() as usize + y.modulus().size() as usize - 2;
         if x.modulus() != y.modulus() {
             // there is an extra ciphertext to support nonequal inputs
             self.stats.nciphertexts += 1;
         }
-        self.update_moduli(x.modulus());
+        self.update_moduli(&x.modulus());
         Ok(result)
     }
 
     fn proj(
         &mut self,
         x: &Self::Item,
-        q: u16,
+        q: &Modulus,
         tt: Option<Vec<u16>>,
     ) -> Result<Self::Item, Self::Error> {
         let result = self.underlying.proj(x, q, tt)?;
         self.stats.nprojs += 1;
-        self.stats.nciphertexts += x.modulus() as usize - 1;
+        self.stats.nciphertexts += x.modulus().size() as usize - 1;
         self.update_moduli(q);
         Ok(result)
     }
 
     fn output(&mut self, x: &Self::Item) -> Result<Option<u16>, Self::Error> {
         let result = self.underlying.output(x)?;
-        self.stats.outputs.push(x.modulus());
+        self.stats.outputs.push(x.modulus().size());
         Ok(result)
     }
 }
