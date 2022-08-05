@@ -529,7 +529,7 @@ impl Wire {
     /// Uses fixed-key AES.
     pub fn hashback(&self, tweak: Block, q: u16) -> Wire {
         let block = self.hash(tweak);
-        match self {
+        match *self {
             Wire::GF4 { .. } => {
                 Self::from_block(block, &Modulus::GF4 { p: q as u8 })
             }
