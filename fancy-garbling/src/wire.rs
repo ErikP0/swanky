@@ -91,7 +91,14 @@ impl Modulus {
     pub fn value(&self) -> u16 {
         match self {
             Modulus::Zq { q } => *q,
-            Modulus::GF4 { p } => *p as u16,
+            Modulus::GF4 { p } => *p ,
+        }
+    }
+
+    pub fn size(&self) -> u16 {
+        match self {
+            Modulus::Zq { q } => *q,
+            Modulus::GF4 { p } => 16 ,
         }
     }
 }
