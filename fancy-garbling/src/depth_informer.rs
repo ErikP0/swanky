@@ -8,19 +8,19 @@
 
 use crate::{
     errors::FancyError,
-    fancy::{Fancy, FancyInput, FancyReveal, HasModulus},
+    fancy::{Fancy, FancyInput, FancyReveal, HasModulus}, Modulus,
 };
 use std::cmp::max;
 
 /// Carries the depth of the computation.
 #[derive(Clone, Debug)]
 pub struct DepthItem {
-    modulus: u16,
+    modulus: Modulus,
     depth: usize,
 }
 
 impl HasModulus for DepthItem {
-    fn modulus(&self) -> u16 {
+    fn modulus(&self) -> Modulus {
         self.modulus
     }
 }
@@ -99,7 +99,7 @@ impl FancyInput for DepthInformer {
     type Item = DepthItem;
     type Error = DepthError;
 
-    fn receive_many(&mut self, moduli: &[u16]) -> Result<Vec<Self::Item>, Self::Error> {
+    fn receive_many(&mut self, moduli: &[Modulus]) -> Result<Vec<Self::Item>, Self::Error> {
         self.ninputs += moduli.len();
         Ok(moduli
             .iter()
@@ -113,7 +113,7 @@ impl FancyInput for DepthInformer {
     fn encode_many(
         &mut self,
         _values: &[u16],
-        moduli: &[u16],
+        moduli: &[Modulus],
     ) -> Result<Vec<Self::Item>, Self::Error> {
         self.receive_many(moduli)
     }
@@ -123,10 +123,10 @@ impl Fancy for DepthInformer {
     type Item = DepthItem;
     type Error = DepthError;
 
-    fn constant(&mut self, _val: u16, q: u16) -> Result<Self::Item, Self::Error> {
+    fn constant(&mut self, _val: u16, q: &Modulus) -> Result<Self::Item, Self::Error> {
         self.nconstants += 1;
         Ok(DepthItem {
-            modulus: q,
+            modulus: *q,
             depth: 0,
         })
     }
@@ -166,7 +166,7 @@ impl Fancy for DepthInformer {
     fn proj(
         &mut self,
         _x: &Self::Item,
-        _q: u16,
+        _q: &Modulus,
         _tt: Option<Vec<u16>>,
     ) -> Result<Self::Item, Self::Error> {
         Err(DepthError::ProjUnsupported)
