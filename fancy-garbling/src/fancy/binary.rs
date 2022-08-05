@@ -49,7 +49,7 @@ impl<W: Clone + HasModulus> DerefMut for BinaryBundle<W> {
 
 impl<W: Clone + HasModulus> From<Bundle<W>> for BinaryBundle<W> {
     fn from(b: Bundle<W>) -> BinaryBundle<W> {
-        debug_assert!(b.moduli().iter().all(|&p| p == 2));
+        debug_assert!(b.moduli().iter().all(|&p| p == Modulus::Zq { q:2 }));
         BinaryBundle(b)
     }
 }
@@ -64,7 +64,7 @@ pub trait BinaryGadgets: Fancy + BundleGadgets {
         val: u128,
         nbits: usize,
     ) -> Result<BinaryBundle<Self::Item>, Self::Error> {
-        self.constant_bundle(&util::u128_to_bits(val, nbits), &vec![2; nbits])
+        self.constant_bundle(&util::u128_to_bits(val, nbits), &vec![Modulus::Zq{ q:2 }; nbits])
             .map(BinaryBundle)
     }
 

@@ -11,6 +11,7 @@ use crate::{
     errors::FancyError,
     fancy::bundle::{Bundle, BundleGadgets},
     util,
+    Modulus
 };
 use itertools::Itertools;
 use std::ops::Deref;
@@ -32,7 +33,7 @@ impl<W: Clone + HasModulus> CrtBundle<W> {
 
     /// Return the product of all the wires' moduli.
     pub fn composite_modulus(&self) -> u128 {
-        util::product(&self.iter().map(HasModulus::modulus).collect_vec())
+        util::product(&self.iter().map(|w| w.modulus().size()).collect_vec())
     }
 }
 
@@ -63,7 +64,7 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
         let ps = util::factor(q);
         let xs = ps.iter().map(|&p| (x % p as u128) as u16).collect_vec();
-        self.constant_bundle(&xs, &ps).map(CrtBundle)
+        self.constant_bundle(&xs, &ps.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>()).map(CrtBundle)
     }
 
     /// Output a CRT bundle and interpret it mod Q.
@@ -114,7 +115,7 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         x: &CrtBundle<Self::Item>,
         c: u128,
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
-        let cs = util::crt(c, &x.moduli());
+        let cs = util::crt(c, &x.moduli().into_iter().map(|q| q.size()).collect_vec());
         x.wires()
             .iter()
             .zip(cs.into_iter())
@@ -142,10 +143,10 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
             .iter()
             .map(|x| {
                 let p = x.modulus();
-                let tab = (0..p)
-                    .map(|x| ((x as u64).pow(c as u32) % p as u64) as u16)
+                let tab = (0..p.size())
+                    .map(|x| ((x as u64).pow(c as u32) % p.size() as u64) as u16)
                     .collect_vec();
-                self.proj(x, p, Some(tab))
+                self.proj(x, &p, Some(tab))
             })
             .collect::<Result<Vec<Self::Item>, Self::Error>>()
             .map(CrtBundle::new)
@@ -155,9 +156,9 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
     fn crt_rem(
         &mut self,
         x: &CrtBundle<Self::Item>,
-        p: u16,
+        p: &Modulus,
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
-        let i = x.moduli().iter().position(|&q| p == q).ok_or_else(|| {
+        let i = x.moduli().iter().position(|q| p == q).ok_or_else(|| {
             Self::Error::from(FancyError::InvalidArg(
                 "p is not a modulus in this bundle!".to_string(),
             ))
@@ -165,7 +166,7 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         let w = &x.wires()[i];
         x.moduli()
             .iter()
-            .map(|&q| self.mod_change(w, q))
+            .map(|&q| self.mod_change(w, q.size()))
             .collect::<Result<Vec<Self::Item>, Self::Error>>()
             .map(CrtBundle::new)
     }
@@ -178,24 +179,24 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
     fn crt_fractional_mixed_radix(
         &mut self,
         bun: &CrtBundle<Self::Item>,
-        ms: &[u16],
+        ms: &[Modulus],
     ) -> Result<Self::Item, Self::Error> {
         let ndigits = ms.len();
 
-        let q = util::product(&bun.moduli());
-        let M = util::product(ms);
+        let q = util::product(&bun.moduli().into_iter().map(|q| q.size()).collect_vec());
+        let M = util::product(&ms.iter().map(|q| q.size()).collect_vec());
 
         let mut ds = Vec::new();
 
         for wire in bun.wires().iter() {
-            let p = wire.modulus();
+            let p = wire.modulus().size();
 
             let mut tabs = vec![Vec::with_capacity(p as usize); ndigits];
 
             for x in 0..p {
                 let crt_coef = util::inv(((q / p as u128) % p as u128) as i128, p as i128);
                 let y = (M as f64 * x as f64 * crt_coef as f64 / p as f64).round() as u128 % M;
-                let digits = util::as_mixed_radix(y, ms);
+                let digits = util::as_mixed_radix(y, &ms.iter().map(|q| q.size()).collect_vec());
                 for i in 0..ndigits {
                     tabs[i].push(digits[i]);
                 }
@@ -204,7 +205,7 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
             let new_ds = tabs
                 .into_iter()
                 .enumerate()
-                .map(|(i, tt)| self.proj(wire, ms[i], Some(tt)))
+                .map(|(i, tt)| self.proj(wire, &ms[i], Some(tt)))
                 .collect::<Result<Vec<Self::Item>, Self::Error>>()?;
 
             ds.push(Bundle::new(new_ds));
@@ -220,15 +221,15 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         &mut self,
         x: &CrtBundle<Self::Item>,
         accuracy: &str,
-        output_moduli: Option<&[u16]>,
+        output_moduli: Option<&[Modulus]>,
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
         let factors_of_m = &get_ms(x, accuracy);
-        let res = self.crt_fractional_mixed_radix(x, factors_of_m)?;
+        let res = self.crt_fractional_mixed_radix(x, &factors_of_m.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec())?;
 
         // project the MSB to 0/1, whether or not it is less than p/2
         let p = *factors_of_m.last().unwrap();
         let mask_tt = (0..p).map(|x| (x < p / 2) as u16).collect_vec();
-        let mask = self.proj(&res, 2, Some(mask_tt))?;
+        let mask = self.proj(&res, &Modulus::Zq { q:2 }, Some(mask_tt))?;
 
         // use the mask to either output x or 0
         output_moduli
@@ -249,10 +250,10 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         accuracy: &str,
     ) -> Result<Self::Item, Self::Error> {
         let factors_of_m = &get_ms(x, accuracy);
-        let res = self.crt_fractional_mixed_radix(x, factors_of_m)?;
+        let res = self.crt_fractional_mixed_radix(x, &factors_of_m.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec())?;
         let p = *factors_of_m.last().unwrap();
         let tt = (0..p).map(|x| (x >= p / 2) as u16).collect_vec();
-        self.proj(&res, 2, Some(tt))
+        self.proj(&res, &Modulus::Zq{ q:2 }, Some(tt))
     }
 
     /// Return `if x >= 0 then 1 else -1`, where `-1` is interpreted as `Q-1`.
@@ -262,15 +263,15 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         &mut self,
         x: &CrtBundle<Self::Item>,
         accuracy: &str,
-        output_moduli: Option<&[u16]>,
+        output_moduli: Option<&[Modulus]>,
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
         let sign = self.crt_sign(x, accuracy)?;
         output_moduli
             .unwrap_or(&x.moduli())
             .iter()
             .map(|&p| {
-                let tt = vec![1, p - 1];
-                self.proj(&sign, p, Some(tt))
+                let tt = vec![1, p.size() - 1];
+                self.proj(&sign, &p, Some(tt))
             })
             .collect::<Result<Vec<Self::Item>, Self::Error>>()
             .map(CrtBundle::new)
@@ -360,12 +361,12 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         };
 
         let mut gadget = |x: &Self::Item, y: &Self::Item| -> Result<Self::Item, Self::Error> {
-            let p = x.modulus();
-            let q = y.modulus();
+            let p = x.modulus().size();
+            let q = y.modulus().size();
             let x_ = self.mod_change(x, p + q - 1)?;
             let y_ = self.mod_change(y, p + q - 1)?;
             let z = self.sub(&x_, &y_)?;
-            self.proj(&z, q, Some(gadget_projection_tt(p, q)))
+            self.proj(&z, &Modulus::Zq { q }, Some(gadget_projection_tt(p, q)))
         };
 
         let n = xs.size();
@@ -402,9 +403,9 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         let z = self.crt_sub(x, y)?;
         let mut pmr = self.crt_to_pmr(&z)?;
         let w = pmr.pop().unwrap();
-        let mut tab = vec![1; w.modulus() as usize];
+        let mut tab = vec![1; w.modulus().size() as usize];
         tab[0] = 0;
-        self.proj(&w, 2, Some(tab))
+        self.proj(&w, &Modulus::Zq { q: 2 }, Some(tab))
     }
 
     /// Comparison based on PMR, more expensive than crt_lt but works on more things. For
@@ -437,7 +438,7 @@ pub trait CrtGadgets: Fancy + BundleGadgets {
         // Compute l based on the assumption that the last prime is unused.
         let nprimes = x.moduli().len();
         let qs_ = &x.moduli()[..nprimes - 1];
-        let q_ = util::product(qs_);
+        let q_ = util::product(&qs_.iter().map(|q| q.size()).collect_vec());
         let l = 128 - q_.leading_zeros();
 
         let mut quotient = self.crt_constant_bundle(0, q)?;

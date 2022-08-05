@@ -7,6 +7,7 @@
 use crate::{
     errors::FancyError,
     fancy::{Fancy, HasModulus},
+    Modulus,
 };
 use itertools::Itertools;
 use std::ops::Index;
@@ -22,7 +23,7 @@ impl<W: Clone + HasModulus> Bundle<W> {
     }
 
     /// Return the moduli of all the wires in the bundle.
-    pub fn moduli(&self) -> Vec<u16> {
+    pub fn moduli(&self) -> Vec<Modulus> {
         self.0.iter().map(HasModulus::modulus).collect()
     }
 
@@ -38,11 +39,11 @@ impl<W: Clone + HasModulus> Bundle<W> {
 
     /// Whether this bundle only contains residues in mod 2.
     pub fn is_binary(&self) -> bool {
-        self.moduli().iter().all(|m| *m == 2)
+        self.moduli().iter().all(|m| *m == Modulus::Zq { q: 2 })
     }
 
     /// Returns a new bundle only containing wires with matching moduli.
-    pub fn with_moduli(&self, moduli: &[u16]) -> Bundle<W> {
+    pub fn with_moduli(&self, moduli: &[Modulus]) -> Bundle<W> {
         let old_ws = self.wires();
         let mut new_ws = Vec::with_capacity(moduli.len());
         for &p in moduli {
@@ -110,11 +111,11 @@ pub trait BundleGadgets: Fancy {
     fn constant_bundle(
         &mut self,
         xs: &[u16],
-        ps: &[u16],
+        ps: &[Modulus],
     ) -> Result<Bundle<Self::Item>, Self::Error> {
         xs.iter()
             .zip(ps.iter())
-            .map(|(&x, &p)| self.constant(x, p))
+            .map(|(&x, p)| self.constant(x, p))
             .collect::<Result<Vec<Self::Item>, Self::Error>>()
             .map(Bundle)
     }
@@ -239,7 +240,7 @@ pub trait BundleGadgets: Fancy {
 
             if i < n - 1 {
                 // compute the carries
-                let q = xs[0].wires()[i].modulus();
+                let q = xs[0].wires()[i].modulus().size();
                 // max_carry currently contains the max carry from the previous iteration
                 let max_val = nargs as u16 * (q - 1) + max_carry;
                 // now it is the max carry of this iteration
@@ -258,18 +259,19 @@ pub trait BundleGadgets: Fancy {
                 // carry now contains the carry information, we just have to project it to
                 // the correct moduli for the next iteration
                 let next_mod = xs[0].wires()[i + 1].modulus();
-                let tt = (0..=max_val).map(|i| (i / q) % next_mod).collect_vec();
-                digit_carry = Some(self.proj(&carry, next_mod, Some(tt))?);
+                let next_mod_sz = next_mod.size();
+                let tt = (0..=max_val).map(|i| (i / q) % next_mod_sz).collect_vec();
+                digit_carry = Some(self.proj(&carry, &next_mod, Some(tt))?);
 
-                let next_max_val = nargs as u16 * (next_mod - 1) + max_carry;
+                let next_max_val = nargs as u16 * (next_mod_sz - 1) + max_carry;
 
                 if i < n - 2 {
-                    if max_carry < next_mod {
+                    if max_carry < next_mod_sz {
                         carry_carry =
                             Some(self.mod_change(digit_carry.as_ref().unwrap(), next_max_val + 1)?);
                     } else {
                         let tt = (0..=max_val).map(|i| i / q).collect_vec();
-                        carry_carry = Some(self.proj(&carry, next_max_val + 1, Some(tt))?);
+                        carry_carry = Some(self.proj(&carry, &Modulus::Zq { q:next_max_val + 1 }, Some(tt))?);
                     }
                 } else {
                     // next digit is MSB so we dont need carry_carry
@@ -309,7 +311,7 @@ pub trait BundleGadgets: Fancy {
             // all the ith digits, in one vec
             let ds = xs.iter().map(|x| x.wires()[i].clone()).collect_vec();
             // compute the carry
-            let q = xs[0].moduli()[i];
+            let q = xs[0].moduli()[i].size();
             // max_carry currently contains the max carry from the previous iteration
             let max_val = nargs as u16 * (q - 1) + max_carry;
             // now it is the max carry of this iteration
@@ -333,13 +335,13 @@ pub trait BundleGadgets: Fancy {
             // compute the next carry, if i < n-2, or it will be used to compute the
             // output MSB, in which case it should be the modulus of the SB
             let next_mod = if i < n - 2 {
-                nargs as u16 * (xs[0].moduli()[i + 1] - 1) + max_carry + 1
+                nargs as u16 * (xs[0].moduli()[i + 1].size() - 1) + max_carry + 1
             } else {
-                xs[0].moduli()[i + 1] // we will be adding the carry to the MSB
+                xs[0].moduli()[i + 1].size() // we will be adding the carry to the MSB
             };
 
             let tt = (0..=max_val).map(|i| (i / q) % next_mod).collect_vec();
-            opt_carry = Some(self.proj(&sum_with_carry, next_mod, Some(tt))?);
+            opt_carry = Some(self.proj(&sum_with_carry, &Modulus::Zq { q:next_mod}, Some(tt))?);
         }
 
         // compute the msb
@@ -386,7 +388,7 @@ pub trait BundleGadgets: Fancy {
         n: usize,
     ) -> Result<Bundle<Self::Item>, Self::Error> {
         let mut ws = x.wires().to_vec();
-        let zero = self.constant(0, ws.last().unwrap().modulus())?;
+        let zero = self.constant(0, &ws.last().unwrap().modulus())?;
         for _ in 0..n {
             ws.pop();
             ws.insert(0, zero.clone());
@@ -402,7 +404,7 @@ pub trait BundleGadgets: Fancy {
         n: usize,
     ) -> Result<Bundle<Self::Item>, Self::Error> {
         let mut ws = x.wires().to_vec();
-        let zero = self.constant(0, ws.last().unwrap().modulus())?;
+        let zero = self.constant(0, &ws.last().unwrap().modulus())?;
         for _ in 0..n {
             ws.insert(0, zero.clone());
         }
@@ -426,9 +428,9 @@ pub trait BundleGadgets: Fancy {
             .map(|(x, y)| {
                 // compute (x-y == 0) for each residue
                 let z = self.sub(x, y)?;
-                let mut eq_zero_tab = vec![0; x.modulus() as usize];
+                let mut eq_zero_tab = vec![0; x.modulus().size() as usize];
                 eq_zero_tab[0] = 1;
-                self.proj(&z, wlen + 1, Some(eq_zero_tab))
+                self.proj(&z, &Modulus::Zq { q:wlen + 1} , Some(eq_zero_tab))
             })
             .collect::<Result<Vec<Self::Item>, Self::Error>>()?;
         // add up the results, and output whether they equal zero or not, mod 2
@@ -436,6 +438,6 @@ pub trait BundleGadgets: Fancy {
         let b = zs.len();
         let mut tab = vec![0; b + 1];
         tab[b] = 1;
-        self.proj(&z, 2, Some(tab))
+        self.proj(&z, &Modulus::Zq { q:2 }, Some(tab))
     }
 }

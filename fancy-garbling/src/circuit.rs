@@ -819,7 +819,7 @@ mod bundle {
 
         let mut b = CircuitBuilder::new();
         let x = b.crt_garbler_input(q);
-        let z = b.crt_rem(&x, p).unwrap();
+        let z = b.crt_rem(&x, &Modulus::Zq { q:p }).unwrap();
         b.output_bundle(&z).unwrap();
         let c = b.finish();
 
