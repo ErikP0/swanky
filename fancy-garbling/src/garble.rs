@@ -21,6 +21,7 @@ mod nonstreaming {
         classic::garble,
         fancy::{Bundle, BundleGadgets, Fancy},
         util::{self, RngExt},
+        Modulus,
     };
     use itertools::Itertools;
     use rand::{thread_rng, SeedableRng};
@@ -29,18 +30,18 @@ mod nonstreaming {
     // helper
     fn garble_test_helper<F>(f: F)
     where
-        F: Fn(u16) -> Circuit,
+        F: Fn(&Modulus) -> Circuit,
     {
         let mut rng = thread_rng();
         for _ in 0..16 {
             let q = rng.gen_prime();
-            let mut c = &mut f(q);
+            let mut c = &mut f(&Modulus::Zq { q });
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
                 let mut inps = Vec::new();
                 for i in 0..c.num_evaluator_inputs() {
                     let q = c.evaluator_input_mod(i);
-                    let x = rng.gen_u16() % q;
+                    let x = rng.gen_u16() % q.size();
                     inps.push(x);
                 }
                 // Run the garbled circuit evaluator.
@@ -70,7 +71,7 @@ mod nonstreaming {
     fn add_many() {
         garble_test_helper(|q| {
             let mut b = CircuitBuilder::new();
-            let xs = b.evaluator_inputs(&vec![q; 16]);
+            let xs = b.evaluator_inputs(&vec![*q; 16]);
             let z = b.add_many(&xs).unwrap();
             b.output(&z).unwrap();
             b.finish()
@@ -81,7 +82,7 @@ mod nonstreaming {
     fn or_many() {
         garble_test_helper(|_| {
             let mut b = CircuitBuilder::new();
-            let xs = b.evaluator_inputs(&vec![2; 16]);
+            let xs = b.evaluator_inputs(&vec![Modulus::Zq { q:2 }; 16]);
             let z = b.or_many(&xs).unwrap();
             b.output(&z).unwrap();
             b.finish()
@@ -106,7 +107,7 @@ mod nonstreaming {
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
             let z;
-            if q > 2 {
+            if q.size() > 2 {
                 z = b.cmul(&x, 2).unwrap();
             } else {
                 z = b.cmul(&x, 1).unwrap();
@@ -120,8 +121,8 @@ mod nonstreaming {
     fn proj_cycle() {
         garble_test_helper(|q| {
             let mut tab = Vec::new();
-            for i in 0..q {
-                tab.push((i + 1) % q);
+            for i in 0..q.size() {
+                tab.push((i + 1) % q.size());
             }
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
@@ -136,8 +137,8 @@ mod nonstreaming {
         garble_test_helper(|q| {
             let mut rng = thread_rng();
             let mut tab = Vec::new();
-            for _ in 0..q {
-                tab.push(rng.gen_u16() % q);
+            for _ in 0..q.size() {
+                tab.push(rng.gen_u16() % q.size());
             }
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
@@ -152,7 +153,7 @@ mod nonstreaming {
         garble_test_helper(|q| {
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
-            let z = b.mod_change(&x, q * 2).unwrap();
+            let z = b.mod_change(&x, q.size() * 2).unwrap();
             b.output(&z).unwrap();
             b.finish()
         });
@@ -178,8 +179,8 @@ mod nonstreaming {
             println!("\nTESTING MOD q={} ymod={}", q, ymod);
 
             let mut b = CircuitBuilder::new();
-            let x = b.evaluator_input(q);
-            let y = b.evaluator_input(ymod);
+            let x = b.evaluator_input(&Modulus::Zq { q });
+            let y = b.evaluator_input(&Modulus::Zq { q: ymod });
             let z = b.mul(&x, &y).unwrap();
             b.output(&z).unwrap();
             let mut c = b.finish();
@@ -204,10 +205,11 @@ mod nonstreaming {
 
         let nargs = 2 + rng.gen_usize() % 100;
         let mods = vec![3, 7, 10, 2, 13];
+        let modsM = mods.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>();
 
         let mut b = CircuitBuilder::new();
         let xs = (0..nargs)
-            .map(|_| Bundle::new(b.evaluator_inputs(&mods)))
+            .map(|_| Bundle::new(b.evaluator_inputs(&modsM)))
             .collect_vec();
         let z = b.mixed_radix_addition(&xs).unwrap();
         b.output_bundle(&z).unwrap();
@@ -241,7 +243,7 @@ mod nonstreaming {
         let q = rng.gen_modulus();
         let c = rng.gen_u16() % q;
 
-        let y = b.constant(c, q).unwrap();
+        let y = b.constant(c, &Modulus::Zq { q }).unwrap();
         b.output(&y).unwrap();
 
         let mut circ = b.finish();
@@ -263,8 +265,8 @@ mod nonstreaming {
         let q = rng.gen_modulus();
         let c = rng.gen_u16() % q;
 
-        let x = b.evaluator_input(q);
-        let y = b.constant(c, q).unwrap();
+        let x = b.evaluator_input(&Modulus::Zq { q });
+        let y = b.constant(c, &Modulus::Zq { q }).unwrap();
         let z = b.add(&x, &y).unwrap();
         b.output(&z).unwrap();
 
@@ -293,6 +295,7 @@ mod streaming {
         FancyInput,
         Garbler,
         Wire,
+        Modulus,
     };
     use itertools::Itertools;
     use rand::thread_rng;
@@ -304,14 +307,14 @@ mod streaming {
         mut f_gb: FGB,
         mut f_ev: FEV,
         mut f_du: FDU,
-        input_mods: &[u16],
+        input_mods: &[Modulus],
     ) where
         FGB: FnMut(&mut Garbler<UnixChannel, AesRng>, &[Wire]) -> Option<u16> + Send + Sync,
         FEV: FnMut(&mut Evaluator<UnixChannel>, &[Wire]) -> Option<u16>,
         FDU: FnMut(&mut Dummy, &[DummyVal]) -> Option<u16>,
     {
         let mut rng = AesRng::new();
-        let inputs = input_mods.iter().map(|q| rng.gen_u16() % q).collect_vec();
+        let inputs = input_mods.iter().map(|q| rng.gen_u16() % q.size()).collect_vec();
 
         // evaluate f_gb as a dummy
         let mut dummy = Dummy::new();
@@ -333,7 +336,7 @@ mod streaming {
             let mut ev = Evaluator::new(receiver);
             let ev_inp = input_mods
                 .iter()
-                .map(|q| ev.read_wire(*q).unwrap())
+                .map(|q| ev.read_wire(q).unwrap())
                 .collect_vec();
             let result = f_ev(&mut ev, &ev_inp).unwrap();
 
@@ -351,7 +354,7 @@ mod streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_modulus();
+            let q = Modulus::Zq { q: rng.gen_modulus() };
             streaming_test(
                 move |b, xs| fancy_addition(b, xs),
                 move |b, xs| fancy_addition(b, xs),
@@ -370,7 +373,7 @@ mod streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_modulus();
+            let q = Modulus::Zq { q: rng.gen_modulus() };
             streaming_test(
                 move |b, xs| fancy_subtraction(b, xs),
                 move |b, xs| fancy_subtraction(b, xs),
@@ -389,7 +392,7 @@ mod streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_modulus();
+            let q = Modulus::Zq { q: rng.gen_modulus() };
             streaming_test(
                 move |b, xs| fancy_multiplication(b, xs),
                 move |b, xs| fancy_multiplication(b, xs),
@@ -408,7 +411,7 @@ mod streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_modulus();
+            let q = Modulus::Zq { q: rng.gen_modulus() };
             streaming_test(
                 move |b, xs| fancy_cmul(b, xs),
                 move |b, xs| fancy_cmul(b, xs),
@@ -420,19 +423,19 @@ mod streaming {
 
     #[test]
     fn proj() {
-        fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: u16) -> Option<u16> {
-            let tab = (0..q).map(|i| (i + 1) % q).collect_vec();
+        fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+            let tab = (0..q.size()).map(|i| (i + 1) % q.size()).collect_vec();
             let z = b.proj(&xs[0], q, Some(tab)).unwrap();
             b.output(&z).unwrap()
         }
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_modulus();
+            let q = Modulus::Zq { q: rng.gen_modulus() };
             streaming_test(
-                move |b, xs| fancy_projection(b, xs, q),
-                move |b, xs| fancy_projection(b, xs, q),
-                move |b, xs| fancy_projection(b, xs, q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
                 &[q],
             );
         }
@@ -450,6 +453,7 @@ mod complex {
         Fancy,
         FancyInput,
         Garbler,
+        Modulus,
     };
     use itertools::Itertools;
     use rand::thread_rng;
@@ -484,7 +488,7 @@ mod complex {
                 .iter()
                 .map(|x| {
                     let xs = crate::util::crt(*x, &qs);
-                    CrtBundle::new(dummy.encode_many(&xs, &qs).unwrap())
+                    CrtBundle::new(dummy.encode_many(&xs, &qs.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>()).unwrap())
                 })
                 .collect_vec();
             let should_be = complex_gadget(&mut dummy, &dinps).unwrap();
@@ -515,7 +519,7 @@ mod complex {
                 for _ in 0..N {
                     let ws = qs
                         .iter()
-                        .map(|q| evaluator.read_wire(*q).unwrap())
+                        .map(|q| evaluator.read_wire(&Modulus::Zq { q: *q }).unwrap())
                         .collect_vec();
                     ev_inp.push(CrtBundle::new(ws));
                 }
