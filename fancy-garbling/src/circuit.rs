@@ -402,18 +402,28 @@ impl Fancy for CircuitBuilder {
     }
 
     fn mul(&mut self, xref: &CircuitRef, yref: &CircuitRef) -> Result<CircuitRef, Self::Error> {
-        if xref.modulus() < yref.modulus() {
-            return self.mul(yref, xref);
+        match (xref.modulus, yref.modulus()) {
+            (Modulus::Zq { q: xmod }, Modulus::Zq { q: ymod }) => {
+                if xmod < ymod {
+                    return self.mul(yref, xref);
+                }
+        
+                let gate = Gate::Mul {
+                    xref: *xref,
+                    yref: *yref,
+                    id: self.get_next_ciphertext_id(),
+                    out: None,
+                };
+
+                Ok(self.gate(gate, &xref.modulus()))
+            },
+            // (Modulus::GF4 { p: xpoly }, Modulus::GF4 { p: ypoly }) => {
+            //     // TODO
+            // },
+            _ => {
+                Err(Self::Error::from(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))))
+            },
         }
-
-        let gate = Gate::Mul {
-            xref: *xref,
-            yref: *yref,
-            id: self.get_next_ciphertext_id(),
-            out: None,
-        };
-
-        Ok(self.gate(gate, &xref.modulus()))
     }
 
     fn output(&mut self, xref: &CircuitRef) -> Result<Option<u16>, Self::Error> {
@@ -647,8 +657,8 @@ mod plaintext {
         let q = rng.gen_modulus();
         let c = rng.gen_u16() % q;
 
-        let x = b.evaluator_input(q);
-        let y = b.constant(c, q).unwrap();
+        let x = b.evaluator_input(&Modulus::Zq { q });
+        let y = b.constant(c, &Modulus::Zq { q }).unwrap();
         let z = b.add(&x, &y).unwrap();
         b.output(&z).unwrap();
 
@@ -856,7 +866,7 @@ mod bundle {
 
         let mut b = CircuitBuilder::new();
         let xs = (0..nargs)
-            .map(|_| crate::fancy::Bundle::new(b.evaluator_inputs(&mods)))
+            .map(|_| crate::fancy::Bundle::new(b.evaluator_inputs(&mods.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>())))
             .collect_vec();
         let z = b.mixed_radix_addition(&xs).unwrap();
         b.output_bundle(&z).unwrap();

@@ -137,36 +137,40 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                 let res = L.plus_mov(&R.plus_mov(&A.cmul(new_b_color)));
                 Ok(res)
             }
-            (Modulus::GF4 { p }, Modulus::GF4 { p: pb }) => {
-                // TODO
-            }
+            // (Modulus::GF4 { p }, Modulus::GF4 { p: pb }) => {
+            //     // TODO
+            // }
             _ => {
-                Err()
+                Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))))
             }
         }
         
     }
 
     fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
-        match *modulus {
-            Modulus::Zq { q } => {
-                let ngates = (q - 1) as usize;
-                let mut gate = Vec::with_capacity(ngates);
-                for _ in 0..ngates {
-                    let block = self.channel.read_block()?;
-                    gate.push(block);
-                }
-                let t = tweak(self.current_gate());
-                if x.color() == 0 {
-                    Ok(x.hashback(t, q))
-                } else {
-                    let ct = gate[x.color() as usize - 1];
-                    Ok(Wire::from_block(ct ^ x.hash(t), q))
-                }
-            }
-            Modulus::GF4 { p } => {
-                // TODO
-            }
+        let q: u16;
+        
+        if let Modulus::Zq { q } = *modulus {
+            q = q;
+        }
+        else if let Modulus::GF4 { p } = *modulus {
+            q = p as u16;
+        }
+        else {
+            return Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
+        }                
+        let ngates = (q - 1) as usize;
+        let mut gate = Vec::with_capacity(ngates);
+        for _ in 0..ngates {
+            let block = self.channel.read_block()?;
+            gate.push(block);
+        }
+        let t = tweak(self.current_gate());
+        if x.color() == 0 {
+            Ok(x.hashback(t, q))
+        } else {
+            let ct = gate[x.color() as usize - 1];
+            Ok(Wire::from_block(ct ^ x.hash(t), modulus))
         }
     }
 
