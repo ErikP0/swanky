@@ -866,7 +866,7 @@ mod bundle {
 
         let mut b = CircuitBuilder::new();
         let xs = (0..nargs)
-            .map(|_| crate::fancy::Bundle::new(b.evaluator_inputs(&mods.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>())))
+            .map(|_| crate::fancy::Bundle::new(b.evaluator_inputs(&mods.iter().map(|q| Modulus::Zq { q: *q }).collect::<Vec<_>>())))
             .collect_vec();
         let z = b.mixed_radix_addition(&xs).unwrap();
         b.output_bundle(&z).unwrap();
