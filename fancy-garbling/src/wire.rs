@@ -577,8 +577,25 @@ impl Wire {
 mod tests {
     use super::*;
     use crate::util::RngExt;
-    use itertools::Itertools;
+    use itertools::{Itertools, assert_equal};
     use rand::thread_rng;
+
+    #[test]
+    fn modM_eq() {
+        let M1 = Modulus::Zq { q: 4 };
+        let M2 = Modulus::Zq { q: 4 };
+
+        assert_eq!(M1, M2);
+
+        let mut vM1 = Vec::new();
+        let mut vM2 = Vec::new();
+        for qq in 0..5 {
+            vM1.push(Modulus::Zq { q: qq });
+            vM2.push(Modulus::Zq { q: qq });
+        }
+
+        assert_eq!(vM1, vM2);
+    }
 
     #[test]
     fn packing() {
