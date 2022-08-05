@@ -205,7 +205,7 @@ mod nonstreaming {
 
         let nargs = 2 + rng.gen_usize() % 100;
         let mods = vec![3, 7, 10, 2, 13];
-        let modsM = mods.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>();
+        let modsM = mods.iter().map(|q| Modulus::Zq { q: *q }).collect::<Vec<_>>();
 
         let mut b = CircuitBuilder::new();
         let xs = (0..nargs)
@@ -216,7 +216,7 @@ mod nonstreaming {
         let mut circ = b.finish();
 
         let (en, ev) = garble(&mut circ).unwrap();
-        println!("mods={:?} nargs={} size={}", mods, nargs, ev.size());
+        println!("mods={:?} nargs={} size={}", modsM, nargs, ev.size());
 
         let Q: u128 = mods.iter().map(|&q| q as u128).product();
 
@@ -488,7 +488,7 @@ mod complex {
                 .iter()
                 .map(|x| {
                     let xs = crate::util::crt(*x, &qs);
-                    CrtBundle::new(dummy.encode_many(&xs, &qs.into_iter().map(|q| Modulus::Zq { q }).collect::<Vec<_>>()).unwrap())
+                    CrtBundle::new(dummy.encode_many(&xs, &qs.iter().map(|q| Modulus::Zq { q: *q }).collect::<Vec<_>>()).unwrap())
                 })
                 .collect_vec();
             let should_be = complex_gadget(&mut dummy, &dinps).unwrap();
