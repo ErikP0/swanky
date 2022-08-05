@@ -32,8 +32,8 @@ impl HasModulus for DummyVal {
 
 impl DummyVal {
     /// Create a new DummyVal.
-    pub fn new(val: u16, modulus: Modulus) -> Self {
-        Self { val, modulus }
+    pub fn new(val: u16, modulus: &Modulus) -> Self {
+        Self { val, modulus: *modulus }
     }
 
     /// Extract the value.
@@ -55,7 +55,7 @@ impl FancyInput for Dummy {
 
     /// Encode a single dummy value.
     fn encode(&mut self, value: u16, modulus: &Modulus) -> Result<DummyVal, DummyError> {
-        Ok(DummyVal::new(value, *modulus))
+        Ok(DummyVal::new(value, modulus))
     }
 
     /// Encode a slice of inputs and a slice of moduli as DummyVals.
@@ -66,7 +66,7 @@ impl FancyInput for Dummy {
         Ok(xs
             .iter()
             .zip(moduli.iter())
-            .map(|(x, q)| DummyVal::new(*x, *q))
+            .map(|(x, q)| DummyVal::new(*x, q))
             .collect())
     }
 
@@ -81,7 +81,7 @@ impl Fancy for Dummy {
     type Error = DummyError;
 
     fn constant(&mut self, val: u16, modulus: &Modulus) -> Result<DummyVal, Self::Error> {
-        Ok(DummyVal::new(val, *modulus))
+        Ok(DummyVal::new(val, modulus))
     }
 
     fn add(&mut self, x: &DummyVal, y: &DummyVal) -> Result<DummyVal, Self::Error> {
@@ -622,7 +622,7 @@ mod bundle {
                         util::as_mixed_radix(Q - 1, &mods)
                             .into_iter()
                             .zip(&mods)
-                            .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: (*q) }))
+                            .map(|(x, q)| DummyVal::new(x, &Modulus::Zq { q: *q }))
                             .collect_vec(),
                     )
                 })
@@ -650,7 +650,7 @@ mod bundle {
                             util::as_mixed_radix(x, &mods)
                                 .into_iter()
                                 .zip(&mods)
-                                .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: (*q) }))
+                                .map(|(x, q)| DummyVal::new(x, &Modulus::Zq { q: *q }))
                                 .collect_vec(),
                         )
                     })
