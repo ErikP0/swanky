@@ -98,18 +98,17 @@ impl Modulus {
     pub fn size(&self) -> u16 {
         match self {
             Modulus::Zq { q } => *q,
-            Modulus::GF4 { .. } => 16 ,
+            Modulus::GF4 { p } => 16 ,
         }
     }
 }
-
 impl HasModulus for Wire {
     fn modulus(&self) -> Modulus {
-        match *self {
+        match self {
             Wire::Mod2 { .. } => Modulus::Zq { q: 2 },
             Wire::Mod3 { .. } => Modulus::Zq { q: 3 },
-            Wire::ModN { q, .. } => Modulus::Zq { q },
-            Wire::GF4 { p, .. } => Modulus::GF4 { p },
+            Wire::ModN { q, .. } => Modulus::Zq { q: *q },
+            Wire::GF4 { p, .. } => Modulus::GF4 { p: *p },
         }
     }
 }
@@ -240,11 +239,11 @@ impl Wire {
 
     fn from_block_GF4(inp: Block, p: u8) -> Self {
         let inp = u128::from(inp);
-        let mut _inp = inp;
+        let mut inp_shift = inp;
         let mut elts: Vec<u16> = Vec::with_capacity(32);
         for _ in 0..32 {
             elts.push((inp & 0b1111) as u16);
-            _inp >>= 4;
+            inp_shift >>= 4;
         }
         Wire::GF4 { p, elts }
     }
@@ -431,9 +430,9 @@ impl Wire {
                     .for_each(|d| *d = (*d as u32 * c as u32 % *q as u32) as u16);
             },
             Wire::GF4 { p, elts } => {
-                elts.iter_mut().map(|d| {
+                elts.iter_mut().for_each(|d| {
                     *d *= c;
-                    util::reduce_p_GF4(*d as u8, *p) as u16
+                    *d = util::reduce_p_GF4(*d as u8, *p) as u16
                 });
             }
         }
