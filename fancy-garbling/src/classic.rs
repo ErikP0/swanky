@@ -12,7 +12,7 @@ use crate::{
     errors::{EvaluatorError, GarblerError},
     fancy::HasModulus,
     garble::{Evaluator, Garbler},
-    wire::Wire,
+    wire::{Wire,Modulus},
 };
 use itertools::Itertools;
 use scuttlebutt::{AbstractChannel, AesRng, Block, Channel};
@@ -67,7 +67,7 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
     let gb_inps = (0..c.num_garbler_inputs())
         .map(|i| {
             let q = c.garbler_input_mod(i);
-            let (zero, _) = garbler.encode_wire(0, q);
+            let (zero, _) = garbler.encode_wire(0, &q);
             zero
         })
         .collect_vec();
@@ -75,7 +75,7 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
     let ev_inps = (0..c.num_evaluator_inputs())
         .map(|i| {
             let q = c.evaluator_input_mod(i);
-            let (zero, _) = garbler.encode_wire(0, q);
+            let (zero, _) = garbler.encode_wire(0, &q);
             zero
         })
         .collect_vec();
@@ -103,7 +103,7 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
 pub struct Encoder {
     garbler_inputs: Vec<Wire>,
     evaluator_inputs: Vec<Wire>,
-    deltas: HashMap<u16, Wire>,
+    deltas: HashMap<Modulus, Wire>,
 }
 
 impl Encoder {
@@ -112,7 +112,7 @@ impl Encoder {
     pub fn new(
         garbler_inputs: Vec<Wire>,
         evaluator_inputs: Vec<Wire>,
-        deltas: HashMap<u16, Wire>,
+        deltas: HashMap<Modulus, Wire>,
     ) -> Self {
         Encoder {
             garbler_inputs,
