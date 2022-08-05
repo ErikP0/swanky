@@ -87,6 +87,14 @@ impl std::default::Default for Wire {
     }
 }
 
+impl Modulus {
+    pub fn value(&self) -> u16 {
+        match self {
+            Modulus::Zq { q } => *q,
+            Modulus::GF4 { p } => *p as u16,
+        }
+    }
+}
 impl HasModulus for Wire {
     fn modulus(&self) -> Modulus {
         match self {
