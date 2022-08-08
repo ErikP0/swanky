@@ -326,7 +326,7 @@ pub trait BundleGadgets: Fancy {
             // add them up
             let sum = self.add_many(&modded_ds)?;
             // add in the carry
-            println!("mod sum: {}", sum.modulus());
+            // println!("mod sum: {}", sum.modulus());
             let sum_with_carry = opt_carry
                 .as_ref()
                 .map_or(Ok(sum.clone()), |c| self.add(&sum, &c))?;
