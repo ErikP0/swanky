@@ -150,11 +150,11 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
         let q: u16;
         
-        if let Modulus::Zq { q: qq } = *modulus {
+        if let Modulus::Zq { q: qq } = x.modulus() {
             q = qq;
         }
-        else if let Modulus::GF4 { p } = *modulus {
-            q = p as u16;
+        else if let Modulus::GF4 { p: _ } = x.modulus() {
+            q = 16 as u16;
         }
         else {
             return Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
