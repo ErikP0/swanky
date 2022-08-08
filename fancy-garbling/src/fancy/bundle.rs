@@ -326,7 +326,7 @@ pub trait BundleGadgets: Fancy {
             // add them up
             let sum = self.add_many(&modded_ds)?;
             // add in the carry
-            println!("mod sum: {}", sum.modulus());
+            // println!("mod sum: {}", sum.modulus());
             let sum_with_carry = opt_carry
                 .as_ref()
                 .map_or(Ok(sum.clone()), |c| self.add(&sum, &c))?;
@@ -335,14 +335,14 @@ pub trait BundleGadgets: Fancy {
             // the correct moduli for the next iteration. It will either be used to
             // compute the next carry, if i < n-2, or it will be used to compute the
             // output MSB, in which case it should be the modulus of the SB
-            println!("nargs: {}, xs[0].moduli[i+1]: {}, max_c: {}", nargs as u16, xs[0].moduli()[i + 1].size(), max_carry);
-            println!("current mod: {}", q);
+            // println!("nargs: {}, xs[0].moduli[i+1]: {}, max_c: {}", nargs as u16, xs[0].moduli()[i + 1].size(), max_carry);
+            // println!("current mod: {}", q);
             let next_mod = if i < n - 2 {
                 nargs as u16 * (xs[0].moduli()[i + 1].size() - 1) + max_carry + 1
             } else {
                 xs[0].moduli()[i + 1].size() // we will be adding the carry to the MSB
             };
-            println!("tot: {}", next_mod);
+            // println!("tot: {}", next_mod);
 
             let tt = (0..=max_val).map(|i| (i / q) % next_mod).collect_vec();
             opt_carry = Some(self.proj(&sum_with_carry, &Modulus::Zq { q:next_mod}, Some(tt))?);
