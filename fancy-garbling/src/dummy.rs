@@ -139,9 +139,7 @@ impl Fancy for Dummy {
     }
 
     fn mul(&mut self, x: &DummyVal, y: &DummyVal) -> Result<DummyVal, Self::Error> {
-        if x.modulus() != y.modulus() {
-            return Err(Self::Error::from(FancyError::UnequalModuli));
-        }
+        
 
         let result = match x.modulus() {
             Modulus::Zq { q } => (x.val * y.val) % q,
