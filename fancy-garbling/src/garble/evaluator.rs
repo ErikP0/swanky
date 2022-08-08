@@ -167,7 +167,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         }
         let t = tweak(self.current_gate());
         if x.color() == 0 {
-            Ok(x.hashback(t, q))
+            Ok(x.hashback(t, modulus.size()))
         } else {
             let ct = gate[x.color() as usize - 1];
             Ok(Wire::from_block(ct ^ x.hash(t), modulus))
