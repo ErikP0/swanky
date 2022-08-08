@@ -139,7 +139,6 @@ impl Circuit {
         evaluator_inputs: &[F::Item],
     ) -> Result<Option<Vec<u16>>, F::Error> {
         let mut cache: Vec<Option<F::Item>> = vec![None; self.gates.len()];
-        println!("for start");
         for (i, gate) in self.gates.iter().enumerate() {
             let q = self.modulus(i);
             let (zref_, val) = match *gate {
@@ -154,7 +153,7 @@ impl Circuit {
                     (None, evaluator_inputs[id].clone())
                 }
                 Gate::Constant { val } => (None, f.constant(val, &q)?),
-                Gate::Add { xref, yref, out } => {println!("ass");(
+                Gate::Add { xref, yref, out } => (
                     out,
                     f.add(
                         cache[xref.ix]
@@ -164,8 +163,8 @@ impl Circuit {
                             .as_ref()
                             .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                     )?,
-                )},
-                Gate::Sub { xref, yref, out } => {println!("sub");(
+                ),
+                Gate::Sub { xref, yref, out } => (
                     out,
                     f.sub(
                         cache[xref.ix]
@@ -175,8 +174,8 @@ impl Circuit {
                             .as_ref()
                             .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                     )?,
-                )},
-                Gate::Cmul { xref, c, out } => {println!("cmul");(
+                ),
+                Gate::Cmul { xref, c, out } => (
                     out,
                     f.cmul(
                         cache[xref.ix]
@@ -184,10 +183,10 @@ impl Circuit {
                             .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                         c,
                     )?,
-                )},
+                ),
                 Gate::Proj {
                     xref, ref tt, out, ..
-                } => {println!("projjjj"); (
+                } => (
                     out,
                     f.proj(
                         cache[xref.ix]
@@ -196,10 +195,10 @@ impl Circuit {
                         &q,
                         Some(tt.to_vec()),
                     )?,
-                )},
+                ),
                 Gate::Mul {
                     xref, yref, out, ..
-                } => {println!("mul"); (
+                } => (
                     out,
                     f.mul(
                         cache[xref.ix]
@@ -209,7 +208,7 @@ impl Circuit {
                             .as_ref()
                             .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?,
                     )?,
-                )},
+                ),
             };
             cache[zref_.unwrap_or(i)] = Some(val);
         }

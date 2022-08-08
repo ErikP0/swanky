@@ -153,6 +153,7 @@ mod nonstreaming {
         garble_test_helper(|q| {
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
+            // println!("x {}", x);
             let z = b.mod_change(&x, q.size() * 2).unwrap();
             b.output(&z).unwrap();
             b.finish()
