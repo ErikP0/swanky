@@ -198,7 +198,7 @@ pub trait Fancy {
                 return Ok(x.clone());
             } else {
                 let tab = (0..qfrom).map(|x| x % to_modulus).collect_vec();
-                self.proj(x, &from_modulus, Some(tab))
+                self.proj(x, &Modulus::Zq { q:to_modulus }, Some(tab))
             }
         } else {
             panic!("Wire x is not a Zq type");
