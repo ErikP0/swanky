@@ -56,14 +56,14 @@ mod tests {
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
                 assert_eq!((a + b) % 3, output);
             }
-            println!("{}",a);
         }
     }
 
     #[test]
     fn test_addition_circuit_GF4() {
         for a in 0..16 {
-            for b in 0..16{
+            for b in 4..16{
+                println!("a = {}, b = {}",a,b);
                 let (sender, receiver) = unix_channel_pair();
                 std::thread::spawn(move || {
                     let rng = AesRng::new();
@@ -81,7 +81,7 @@ mod tests {
                 let x = ev.receive(&Modulus::GF4 { p: 19 }).unwrap();
                 let ys = ev.encode_many(&[b], &[Modulus::GF4 { p: 19 }]).unwrap();
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
-                assert_eq!((a + b), output);
+                assert_eq!( a ^ b, output);
             }
         }
     }
