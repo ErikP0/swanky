@@ -420,7 +420,7 @@ pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
     xbits[3] ^= xbits[6];
     (xbits[4], xbits[5], xbits[6] ,xbits[7]) = (0, 0, 0, 0);
 
-    u8_from_bits(&xbits);
+    u8_from_bits(&xbits)
 }
 
 // Generate deltas for GC
