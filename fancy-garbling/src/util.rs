@@ -411,7 +411,6 @@ pub fn is_power_of_2(x: u16) -> bool {
 /// C2 = c2 + c5 + c6
 /// C3 = c3 + c6
 pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
-    println!("x: {}", x); 
     let mut xbits = u8_to_bits(x, 8);
    
     xbits[0] ^= xbits[4];

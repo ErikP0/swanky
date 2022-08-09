@@ -35,8 +35,8 @@ mod tests {
 
     #[test]
     fn test_addition_circuit() {
-        for a in 0..2 {
-            for b in 0..2 {
+        for a in 0..3 {
+            for b in 0..3 {
                 let (sender, receiver) = unix_channel_pair();
                 std::thread::spawn(move || {
                     let rng = AesRng::new();
@@ -55,6 +55,33 @@ mod tests {
                 let ys = ev.encode_many(&[b], &[Modulus::Zq { q: (3) }]).unwrap();
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
                 assert_eq!((a + b) % 3, output);
+            }
+            println!("{}",a);
+        }
+    }
+
+    #[test]
+    fn test_addition_circuit_GF4() {
+        for a in 0..16 {
+            for b in 0..16{
+                let (sender, receiver) = unix_channel_pair();
+                std::thread::spawn(move || {
+                    let rng = AesRng::new();
+                    let mut gb =
+                        Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng)
+                            .unwrap();
+                    let x = gb.encode(a, &Modulus::GF4 { p: 19 }).unwrap();
+                    let ys = gb.receive_many(&[Modulus::GF4 { p: 19 }]).unwrap();
+                    addition(&mut gb, &x, &ys[0]).unwrap();
+                });
+                let rng = AesRng::new();
+                let mut ev =
+                    Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng)
+                        .unwrap();
+                let x = ev.receive(&Modulus::GF4 { p: 19 }).unwrap();
+                let ys = ev.encode_many(&[b], &[Modulus::GF4 { p: 19 }]).unwrap();
+                let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
+                assert_eq!((a + b), output);
             }
         }
     }

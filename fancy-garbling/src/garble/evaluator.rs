@@ -193,7 +193,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                 }
             },
             Modulus::GF4 { .. } => {     // not sure about this
-                let ct = self.channel.read_blocks(16)?;
+                let ct = self.channel.read_blocks(16 as usize)?;
                 // Attempt to brute force x using the output ciphertext
                 for k in 0..16 {
                     let hashed_wire = x.hash(output_tweak(i, k));
