@@ -159,7 +159,7 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
 /// Convert a vector of elements in GF(2^4) to a vector of u8s.
 pub fn from_poly_p4(elts: &Vec<u16>, p: u8) -> [u8; 16] {
     debug_assert!(p < 32, "field polynomial has a degree that is too high");
-    elts.chunks(2).rev()
+    elts.chunks(2)
     .map(|c| {
         let c1 = c[1] << 4;
         (c1 + c[0]) as u8
@@ -585,8 +585,9 @@ mod tests {
         for _ in 0..32 {
             elts.push(rng.gen_u16() % 16);
         }
-        println!("res is {:?}", from_poly_p4(&elts, p))
-
+        let array = from_poly_p4(&elts, p);
+        assert_eq!(array.len(), 16);
+        assert!(array.iter().all(|el| *el == *el as u8));
     }
 }
 
