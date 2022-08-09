@@ -418,11 +418,7 @@ pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
     xbits[1] ^= xbits[4] ^ xbits[5];
     xbits[2] ^= xbits[5] ^ xbits[6];
     xbits[3] ^= xbits[6];
-    xbits[4] = 0;
-    xbits[5] = 0;
-    xbits[6] = 0;
-    xbits[7] = 0;
-    u8_from_bits(&xbits)
+    (xbits[4], xbits[5], xbits[6] ,xbits[7]) = (0, 0, 0, 0);
 
 }
 
@@ -522,9 +518,9 @@ impl<R: rand::Rng + Sized> RngExt for R {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{*, reduce_p_GF4};
     use crate::util::RngExt;
-    use rand::thread_rng;
+    use rand::{thread_rng, seq::SliceRandom};
 
     #[test]
     fn crt_conversion() {
@@ -589,6 +585,15 @@ mod tests {
         let array = from_poly_p4(&elts, p);
         assert_eq!(array.len(), 16);
         assert!(array.iter().all(|el| *el == *el as u8));
+    }
+
+    #[test]
+    fn reduce_poly_GF4() {
+        let mut rng = thread_rng();
+        let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
+        let x = rng.gen_u16() as u8;
+        let redx = reduce_p_GF4(x, p);
+        assert_eq!(redx>>4, 0);
     }
 }
 
