@@ -801,6 +801,14 @@ mod tests {
         let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)]}; 
         assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![1] });
 
+        // ( w^2 +1) * ( w^3 + w^2 + w+1)
+        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+2] });
+
+        // ( w^3 +1) * ( w^3 + w^2 + w+1)
+        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)+1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)+2_u16.pow(2)+2] });
+
         let w = Wire::GF4 { p: (19), elts: vec!(2_u16.pow(3))}; 
         assert_eq!(w.cmul(2_u16.pow(3)), Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 4] });
 
