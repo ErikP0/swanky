@@ -585,8 +585,9 @@ mod tests {
         for _ in 0..32 {
             elts.push(rng.gen_u16() % 16);
         }
-        println!("res is {:?}", from_poly_p4(&elts, p))
-
+        let array = from_poly_p4(&elts, p);
+        assert_eq!(array.len(), 16);
+        assert!(array.iter().all(|el| *el == *el as u8));
     }
 }
 
