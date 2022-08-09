@@ -792,9 +792,21 @@ mod tests {
 
     #[test]
     fn cmul_arithmeticGF4() {
+        let mut rng = thread_rng();
         // x^4 * 1 = x + 1 
         let w = Wire::GF4 { p: (19), elts: vec![16]}; 
         assert_eq!(w.cmul(1), Wire::GF4 { p: (19), elts: vec![3] });
+
+        //( w^3) * ( w^3 + w^2 + w+1)        
+        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![1] });
+
+        let w = Wire::GF4 { p: (19), elts: vec!(2_u16.pow(3))}; 
+        assert_eq!(w.cmul(2_u16.pow(3)), Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 4] });
+
+
+        let w = Wire::rand(&mut rng, &Modulus::GF4 { p: 19 });
+        assert_eq!(w.cmul(1),w);
     }
 
     #[test]
