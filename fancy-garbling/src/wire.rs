@@ -242,7 +242,7 @@ impl Wire {
         let mut _inp = inp;
         let mut elts: Vec<u16> = Vec::with_capacity(32);
         for _ in 0..32 {
-            elts.push((inp & 0b1111) as u16);
+            elts.push((_inp & 0b1111) as u16);
             _inp >>= 4;
         }
         Wire::GF4 { p, elts }
@@ -598,12 +598,25 @@ mod tests {
     }
 
     #[test]
-    fn packing() {
+    fn packing_Zq() {
         let ref mut rng = thread_rng();
         for q in 2..256 {
             for _ in 0..1000 {
                 let w = Wire::rand(rng, &Modulus::Zq{ q });
+                println!("mod: {}", w.modulus());
                 assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::Zq{ q }));
+            }
+        }
+    }
+
+    #[test]
+    fn packing_GF() {
+        let ref mut rng = thread_rng();
+        let irred_GF4 = vec!(0b10011, 0b11001, 0b11111);  // all irreducible polynomials for GF(2^4)
+        for p in irred_GF4.into_iter() {  // 0b10011 is X^4 + X + 1
+            for _ in 0..1000 {
+                let w = Wire::rand(rng, &Modulus::GF4{ p });
+                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::GF4{ p }));
             }
         }
     }
