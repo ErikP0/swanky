@@ -417,10 +417,10 @@ pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
     xbits[1] ^= xbits[4] ^ xbits[5];
     xbits[2] ^= xbits[5] ^ xbits[6];
     xbits[3] ^= xbits[6];
-    xbits[4] ^= 0;
-    xbits[5] ^= 0;
-    xbits[6] ^= 0;
-    xbits[7] ^= 0;
+    xbits[4] = 0;
+    xbits[5] = 0;
+    xbits[6] = 0;
+    xbits[7] = 0;
 
     u8_from_bits(&xbits)
 }
