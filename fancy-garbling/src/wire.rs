@@ -524,7 +524,7 @@ impl Wire {
             },
             Modulus::GF4 { p } => {
                 let elts = (0..32)
-                    .map(|_| (rng.gen::<u8>() % 16) as u16)
+                    .map(|_| (util::reduce_p_GF4(rng.gen::<u8>(), p)) as u16)
                     .collect();
                 Wire::GF4 { p, elts }
             },
@@ -542,20 +542,20 @@ impl Wire {
     /// Compute the hash of this wire, converting the result back to a wire.
     ///
     /// Uses fixed-key AES.
-    pub fn hashback(&self, tweak: Block, q: u16) -> Wire {
+    pub fn hashback(&self, tweak: Block, modulus: u16) -> Wire {
         let block = self.hash(tweak);
         match *self {
             Wire::GF4 { .. } => {
-                Self::from_block(block, &Modulus::GF4 { p: q as u8 })
+                Self::from_block(block, &Modulus::GF4 { p: modulus as u8 })
             }
             _ => {
-                if q == 3 {
+                if modulus == 3 {
                     // We have to convert `block` into a valid `Mod3` encoding. We do
                     // this by computing the `Mod3` digits using `_unrank`, and then map
                     // these to a `Mod3` encoding.
                     let mut lsb = 0u64;
                     let mut msb = 0u64;
-                    let mut ds = Self::_unrank(u128::from(block), q);
+                    let mut ds = Self::_unrank(u128::from(block), modulus);
                     for (i, v) in ds.drain(..64).enumerate() {
                         lsb |= ((v & 1) as u64) << i;
                         msb |= (((v >> 1) & 1u16) as u64) << i;
@@ -563,7 +563,7 @@ impl Wire {
                     debug_assert_eq!(lsb & msb, 0);
                     Wire::Mod3 { lsb, msb }
                 } else {
-                    Self::from_block(block, &Modulus::Zq { q })
+                    Self::from_block(block, &Modulus::Zq { q: modulus })
                 }
             }
         }
@@ -577,8 +577,8 @@ impl Wire {
 mod tests {
     use super::*;
     use crate::util::RngExt;
-    use itertools::{Itertools, assert_equal};
-    use rand::thread_rng;
+    use itertools::{Itertools};
+    use rand::{thread_rng, seq::SliceRandom};
 
     #[test]
     fn modM_eq() {
@@ -630,16 +630,40 @@ mod tests {
             let w = Wire::from_block(Block::from(x), &Modulus::Zq{ q });
             let should_be = util::as_base_q_u128(x, q);
             assert_eq!(w.digits(), should_be, "x={} q={}", x, q);
+
+            let irred_GF4 = vec!(0b10011, 0b11001, 0b11111);  // all irreducible polynomials for GF(2^4)
+            for p in irred_GF4.into_iter() {
+                let w = Wire::from_block(Block::from(x), &Modulus::GF4{ p });
+                let should_be = util::as_base_q_u128(x, 16);
+                assert_eq!(w.digits(), should_be, "x={} p={}", x, p);
+            }
         }
     }
 
     #[test]
-    fn hash() {
+    fn hash_Zq() {
         let mut rng = thread_rng();
         for _ in 0..100 {
             let q = 2 + (rng.gen_u16() % 110);
             let x = Wire::rand(&mut rng, &Modulus::Zq { q });
             let y = x.hashback(Block::from(1u128), q);
+            assert!(x != y);
+            match y {
+                Wire::Mod2 { val } => assert!(u128::from(val) > 0),
+                Wire::Mod3 { lsb, msb } => assert!(lsb > 0 && msb > 0),
+                Wire::ModN { ds, .. } => assert!(!ds.iter().all(|&y| y == 0)),
+                Wire::GF4 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
+            }
+        }
+    }
+
+    #[test]
+    fn hash_GF4() {
+        let mut rng = thread_rng();
+        for _ in 0..100 {
+            let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
+            let x = Wire::rand(&mut rng, &Modulus::GF4 { p });
+            let y = x.hashback(Block::from(1u128), p as u16);
             assert!(x != y);
             match y {
                 Wire::Mod2 { val } => assert!(u128::from(val) > 0),
@@ -741,11 +765,32 @@ mod tests {
     }
 
     #[test]
-    fn parallel_hash() {
+    fn parallel_hash_Zq() {
         let n = 1000;
         let mut rng = thread_rng();
         let q = rng.gen_modulus();
         let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::Zq { q })).collect_vec();
+
+        let hashes = crossbeam::scope(|scope| {
+            let hs = ws
+                .iter()
+                .map(|w| scope.spawn(move |_| w.hash(Block::default())))
+                .collect_vec();
+            hs.into_iter().map(|h| h.join().unwrap()).collect_vec()
+        })
+        .unwrap();
+
+        let should_be = ws.iter().map(|w| w.hash(Block::default())).collect_vec();
+
+        assert_eq!(hashes, should_be);
+    }
+
+    #[test]
+    fn parallel_hash_GF4() {
+        let n = 1000;
+        let mut rng = thread_rng();
+        let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
+        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::GF4 { p })).collect_vec();
 
         let hashes = crossbeam::scope(|scope| {
             let hs = ws
