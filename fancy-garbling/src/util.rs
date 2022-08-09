@@ -417,6 +417,10 @@ pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
     xbits[1] ^= xbits[4] ^ xbits[5];
     xbits[2] ^= xbits[5] ^ xbits[6];
     xbits[3] ^= xbits[6];
+    xbits[4] ^= 0;
+    xbits[5] ^= 0;
+    xbits[6] ^= 0;
+    xbits[7] ^= 0;
 
     u8_from_bits(&xbits)
 }
@@ -480,6 +484,10 @@ pub trait RngExt: rand::Rng + Sized {
     /// Randomly generate a (supported) modulus.
     fn gen_modulus(&mut self) -> u16 {
         2 + (self.gen::<u16>() % 111)
+    }
+    /// Randomly generate a (supported) polynomial GF4
+    fn gen_poly(&mut self) -> u8 {
+        2 + (self.gen::<u8>() % 111)
     }
     /// Randomly generate a valid composite modulus.
     fn gen_usable_composite_modulus(&mut self) -> u128 {

@@ -653,25 +653,47 @@ mod tests {
     }
 
     #[test]
+    fn negationGF4() {
+        let ref mut rng = thread_rng();
+        for _ in 0..1000 {
+            let p = 19;
+            let x = Wire::rand(rng, &Modulus::GF4 { p: p });
+            let xneg = x.negate();
+            let y = xneg.negate();
+            assert_eq!(x, y);
+        }
+    }
+
+    #[test]
     fn zero() {
         let mut rng = thread_rng();
+        let p = 19; 
         for _ in 0..1000 {
             let q = 3 + (rng.gen_u16() % 110);
             let z = Wire::zero(&Modulus::Zq { q });
             let ds = z.digits();
             assert_eq!(ds, vec![0; ds.len()], "q={}", q);
         }
+        // GF4 test
+        let z = Wire::zero(&Modulus::GF4 { p: p }); 
+        let ds = z.digits();
+        assert_eq!(ds, vec![0; ds.len()]);
     }
 
     #[test]
     fn subzero() {
         let mut rng = thread_rng();
+        let p = 19; 
         for _ in 0..1000 {
             let q = rng.gen_modulus();
             let x = Wire::rand(&mut rng, &Modulus::Zq{ q });
             let z = Wire::zero(&Modulus::Zq{ q });
             assert_eq!(x.minus(&x), z);
         }
+        // GF4 test 
+        let x = Wire::rand(&mut rng, &Modulus::GF4 { p:19  }); 
+        let z = Wire::zero(&Modulus::GF4{ p });
+        assert_eq!(x.minus(&x),z);
     }
 
     #[test]
@@ -682,6 +704,9 @@ mod tests {
             let x = Wire::rand(&mut rng, &Modulus::Zq{ q });
             assert_eq!(x.plus(&Wire::zero(&Modulus::Zq{ q })), x);
         }
+        // GF4 test
+        let x = Wire::rand(&mut rng, &Modulus::GF4{ p: 19 });
+        assert_eq!(x.plus(&Wire::zero(&Modulus::GF4 { p: 19 })), x);
     }
 
     #[test]
@@ -715,6 +740,24 @@ mod tests {
             w.negate_eq();
             assert_eq!(x.negate(), w);
         }
+    }
+
+    #[test]
+    fn basic_arithmeticGF4() {
+        let p = 19;
+        let mut rng = thread_rng(); 
+        for _ in 0..1000 {
+            let x = Wire::rand(&mut rng, &Modulus::GF4 { p: p });
+            assert_eq!(x.cmul(0), Wire::zero(&Modulus::GF4{ p: p}));
+            assert_eq!(x.negate().negate(), x);
+        }
+    }
+
+    #[test]
+    fn cmul_arithmeticGF4() {
+        // x^4 * 1 = x + 1 
+        let w = Wire::GF4 { p: (19), elts: vec![16]}; 
+        assert_eq!(w.cmul(1), Wire::GF4 { p: (19), elts: vec![3] });
     }
 
     #[test]
