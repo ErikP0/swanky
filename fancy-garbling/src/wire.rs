@@ -403,17 +403,7 @@ impl Wire {
     pub fn cmul(&self, c: u16) -> Self {
         self.clone().cmul_mov(c)
     }
-    /// shift-and-Add MSB algorithm for multiplication
-    pub fn mul_GF4(a: u8 ,b: u8, p: u8) -> u8 {
-        let mut c: u8 = 0; 
-        let bbits = util::u8_to_bits(b, 8);
-
-        for i in (0..8).rev() {
-            c <<= 1;
-            c = util::reduce_p_GF4(c ^ bbits[i]*a, p);
-        }
-        c
-    }
+    
     /// Multiply each digit by a constant `c mod q`.
     pub fn cmul_eq(&mut self, c: u16) -> &mut Wire {
         match self {
@@ -443,7 +433,7 @@ impl Wire {
             },
             Wire::GF4 { p, elts } => {
                 elts.iter_mut().for_each(|d| {
-                    *d = Wire::mul_GF4(*d as u8 , c as u8, *p) as u16;
+                    *d = util::mul_GF4(*d as u8 , c as u8, *p) as u16;
                 });
             }
         }

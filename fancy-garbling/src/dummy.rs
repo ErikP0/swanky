@@ -122,12 +122,10 @@ impl Fancy for Dummy {
 
     fn cmul(&mut self, x: &DummyVal, c: u16) -> Result<DummyVal, Self::Error> {
 
-
         let result = match x.modulus() {
             Modulus::Zq {q} => (x.val * c) % q,
             Modulus::GF4 { p } => {
-                let temp = x.val * c;
-                util::reduce_p_GF4(temp as u8, p ) as u16
+                util::mul_GF4(x.val as u8, c as u8,  p ) as u16
             },
         };
 

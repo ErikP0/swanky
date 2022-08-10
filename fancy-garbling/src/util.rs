@@ -169,6 +169,18 @@ pub fn from_poly_p4(elts: &Vec<u16>, p: u8) -> [u8; 16] {
     .unwrap()
 }
 
+/// shift-and-Add MSB algorithm for multiplication
+pub fn mul_GF4(a: u8 ,b: u8, p: u8) -> u8 {
+    let mut c: u8 = 0; 
+    let bbits = u8_to_bits(b, 8);
+
+    for i in (0..8).rev() {
+        c <<= 1;
+        c = reduce_p_GF4(c ^ bbits[i]*a, p);
+    }
+    c
+}
+
 /// Convert little-endian mixed radix digits into u128.
 pub fn from_mixed_radix(digits: &[u16], radii: &[u16]) -> u128 {
     let mut x: u128 = 0;
