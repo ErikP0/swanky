@@ -29,9 +29,9 @@ mod tests {
     use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
 
     fn addition<F: Fancy>(f: &mut F, a: &F::Item, b: &F::Item) -> Result<Option<u16>, F::Error> {
-        let x3_x_1 = 11;
-        let a_ = f.cmul(a, x3_x_1).unwrap();
-        // let a_ = a;
+        // let x3_x_1 = 11;
+        // let a_ = f.cmul(a, x3_x_1).unwrap();
+        let a_ = a;
         let c = f.add(&a_, &b)?;
         f.output(&c)
     }
@@ -83,7 +83,7 @@ mod tests {
                 let x = ev.receive(&Modulus::GF4 { p: 19 }).unwrap();
                 let ys = ev.encode_many(&[b], &[Modulus::GF4 { p: 19 }]).unwrap();
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
-                // assert_eq!( a ^ b, output);
+                assert_eq!( a ^ b, output);
             }
         }
     }
