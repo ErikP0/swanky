@@ -197,7 +197,6 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                 // Attempt to brute force x using the output ciphertext
                 for k in 0..16 {
                     let hashed_wire = x.hash(output_tweak(i, k));
-                    println!("k = {}, evaluatorct = {:?}",k,hashed_wire);
                     if hashed_wire == ct[k as usize] {
                         decoded = Some(k);
                         break;
