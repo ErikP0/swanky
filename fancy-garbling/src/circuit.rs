@@ -532,9 +532,9 @@ impl CircuitBuilder {
 #[cfg(test)]
 mod plaintext {
     use super::*;
-    use crate::util::RngExt;
+    use crate::util::{RngExt, self};
     use itertools::Itertools;
-    use rand::thread_rng;
+    use rand::{thread_rng, seq::SliceRandom};
 
     #[test] // {{{ and_gate_fan_n
     fn and_gate_fan_n() {
@@ -651,7 +651,7 @@ mod plaintext {
     }
     // }}}
     #[test] // constants {{{
-    fn constants() {
+    fn constants_Zq() {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
 
@@ -672,6 +672,29 @@ mod plaintext {
         }
     }
     //}}}
+
+    #[test] // constants {{{
+        fn constants_GF4() {
+            let mut b = CircuitBuilder::new();
+            let mut rng = thread_rng();
+    
+            let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
+            let c = util::reduce_p_GF4(rng.gen_u16() as u8, p);
+    
+            let x = b.evaluator_input(&Modulus::GF4 { p });
+            let y = b.constant(c as u16, &Modulus::GF4 { p }).unwrap();
+            let z = b.add(&x, &y).unwrap();
+            b.output(&z).unwrap();
+    
+            let circ = b.finish();
+    
+            for _ in 0..64 {
+                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p);
+                let z = circ.eval_plain(&[], &[x as u16]).unwrap();
+                assert_eq!(z[0], (x ^ c) as u16);
+            }
+        }
+        //}}}
 }
 
 #[cfg(test)]
@@ -1055,4 +1078,125 @@ mod bundle {
         }
     }
     //}}}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#[cfg(test)]
+mod GF4 {
+    use super::*;
+    use crate::{
+        fancy::{BinaryGadgets, BundleGadgets, CrtGadgets},
+        util::{self, crt_factor, crt_inv_factor, RngExt},
+    };
+    use itertools::Itertools;
+    use rand::thread_rng;
+
+    #[test] // bundle input and output {{{
+        fn test_GF4_input_output() {
+            let mut rng = thread_rng();
+            let q = rng.gen_usable_composite_modulus();
+    
+            let mut b = CircuitBuilder::new();
+            let x = b.crt_garbler_input(q);
+            println!("{:?} wires", x.wires().len());
+            b.output_bundle(&x).unwrap();
+            let c = b.finish();
+    
+            println!("{:?}", c.output_refs);
+    
+            for _ in 0..16 {
+                let x = rng.gen_u128() % q;
+                let res = c.eval_plain(&crt_factor(x, q), &[]).unwrap();
+                println!("{:?}", res);
+                let z = crt_inv_factor(&res, q);
+                assert_eq!(x, z);
+            }
+        }
+    
+        //}}}
+        #[test] // bundle addition {{{
+        fn test_GF4_addition() {
+            let mut rng = thread_rng();
+            let q = rng.gen_usable_composite_modulus();
+    
+            let mut b = CircuitBuilder::new();
+            let x = b.crt_garbler_input(q);
+            let y = b.crt_evaluator_input(q);
+            let z = b.crt_add(&x, &y).unwrap();
+            b.output_bundle(&z).unwrap();
+            let c = b.finish();
+    
+            for _ in 0..16 {
+                let x = rng.gen_u128() % q;
+                let y = rng.gen_u128() % q;
+                let res = c.eval_plain(&crt_factor(x, q), &crt_factor(y, q)).unwrap();
+                let z = crt_inv_factor(&res, q);
+                assert_eq!(z, (x + y) % q);
+            }
+        }
+        //}}}
+        #[test] // bundle subtraction {{{
+        fn test_GF4_subtraction() {
+            let mut rng = thread_rng();
+            let q = rng.gen_usable_composite_modulus();
+    
+            let mut b = CircuitBuilder::new();
+            let x = b.crt_garbler_input(q);
+            let y = b.crt_evaluator_input(q);
+            let z = b.sub_bundles(&x, &y).unwrap();
+            b.output_bundle(&z).unwrap();
+            let c = b.finish();
+    
+            for _ in 0..16 {
+                let x = rng.gen_u128() % q;
+                let y = rng.gen_u128() % q;
+                let res = c.eval_plain(&crt_factor(x, q), &crt_factor(y, q)).unwrap();
+                let z = crt_inv_factor(&res, q);
+                assert_eq!(z, (x + q - y) % q);
+            }
+        }
+        //}}}
+        #[test] // bundle cmul {{{
+        fn test_GF4_cmul() {
+            let mut rng = thread_rng();
+            let q = util::modulus_with_width(16);
+    
+            let mut b = CircuitBuilder::new();
+            let x = b.crt_garbler_input(q);
+            let y = rng.gen_u128() % q;
+            let z = b.crt_cmul(&x, y).unwrap();
+            b.output_bundle(&z).unwrap();
+            let c = b.finish();
+    
+            for _ in 0..16 {
+                let x = rng.gen_u128() % q;
+                let res = c.eval_plain(&crt_factor(x, q), &[]).unwrap();
+                let z = crt_inv_factor(&res, q);
+                assert_eq!(z, (x * y) % q);
+            }
+        }
+        //}}}
 }

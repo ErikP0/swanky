@@ -408,9 +408,9 @@ impl Wire {
         let mut c: u8 = 0; 
         let bbits = util::u8_to_bits(b, 8);
 
-        for i in 0..7 {
-            c = util::reduce_p_GF4(c << 1, p);
-            c ^= bbits[i]*a;
+        for i in (0..7).rev() {
+            c <<= 1;
+            c = util::reduce_p_GF4(c ^ bbits[i]*a, p);
         }
         c
     }
