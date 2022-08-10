@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn test_addition_circuit_GF4() {
         for a in 0..16 {
-            for b in 4..16{
+            for b in 0..16{
                 println!("a = {}, b = {}",a,b);
                 let (sender, receiver) = unix_channel_pair();
                 std::thread::spawn(move || {

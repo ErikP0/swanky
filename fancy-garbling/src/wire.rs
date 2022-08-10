@@ -382,7 +382,9 @@ impl Wire {
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
                 xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
+                    // println!("x + y= {:?} + {:?}", util::u8_to_bits(*x as u8, 8) , util::u8_to_bits(y as u8, 8));
                     *x ^= y;
+                    // println!("sum = {:?}", util::u8_to_bits(*x as u8, 8));
                 });
             } 
             _ => panic!("[Wire::plus_eq] unequal moduli!"),
@@ -805,6 +807,10 @@ mod tests {
         // x^4 * 1 = x + 1 
         let w = Wire::GF4 { p: (19), elts: vec![16]}; 
         assert_eq!(w.cmul(1), Wire::GF4 { p: (19), elts: vec![3] });
+
+        // (x³ + 1) * (x³ + x) = x² + 1
+        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2), Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+1] });
 
         //( w^3) * ( w^3 + w^2 + w+1)        
         let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)]}; 
