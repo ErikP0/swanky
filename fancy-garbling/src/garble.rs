@@ -532,3 +532,65 @@ mod complex {
         }
     }
 }
+
+#[cfg(test)]
+mod GF4 {
+
+    use crate::{
+        circuit::{Circuit, CircuitBuilder},
+        classic::garble,
+        fancy::{Bundle, BundleGadgets, Fancy},
+        util::{self, RngExt},
+        Modulus,
+    };
+    use itertools::Itertools;
+    use rand::{thread_rng, SeedableRng};
+    use scuttlebutt::{AesRng, Block};
+
+    // helper
+    fn garble_test_helper<F>(f: F)
+    where
+        F: Fn(&Modulus) -> Circuit,
+    {
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = rng.gen_prime();
+            let mut c = &mut f(&Modulus::Zq { q });
+            let (en, ev) = garble(&mut c).unwrap();
+            for _ in 0..16 {
+                let mut inps = Vec::new();
+                for i in 0..c.num_evaluator_inputs() {
+                    let q = c.evaluator_input_mod(i);
+                    let x = rng.gen_u16() % q.size();
+                    inps.push(x);
+                }
+                // Run the garbled circuit evaluator.
+                let xs = &en.encode_evaluator_inputs(&inps);
+                let decoded = &ev.eval(&mut c, &[], xs).unwrap();
+
+                // Run the dummy evaluator.
+                let should_be = c.eval_plain(&[], &inps).unwrap();
+                assert_eq!(decoded[0], should_be[0]);
+            }
+        }
+    }
+
+
+
+
+
+
+    #[test] // add
+    fn add_GF4() {
+        garble_test_helper(|q| {
+            let mut b = CircuitBuilder::new();
+            let x = b.evaluator_input(q);
+            let y = b.evaluator_input(q);
+            let z = b.add(&x, &y).unwrap();
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+
+}

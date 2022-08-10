@@ -82,9 +82,9 @@ pub fn garble(c: &Circuit) -> Result<(Encoder, GarbledCircuit), GarblerError> {
 
     c.eval(&mut garbler, &gb_inps, &ev_inps)?;
 
-    let en = Encoder::new(gb_inps, ev_inps, garbler.get_deltas());
+    let en = Encoder::new(gb_inps, ev_inps, garbler.get_deltas());         // Encoder has all zero wire labels for inputs + all deltas 
 
-    let gc = GarbledCircuit::new(
+    let gc = GarbledCircuit::new(                                          // This retrieves all blocks from the garbled circuit
         Rc::try_unwrap(channel.writer())
             .unwrap()
             .into_inner()
