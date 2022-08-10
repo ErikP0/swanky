@@ -414,6 +414,45 @@ pub fn is_power_of_2(x: u16) -> bool {
     (x & (x - 1)) == 0
 }
 
+pub fn construct_reduction_matrix(p: u16, k: u8) -> Vec<u8> {
+    let mut mtrx: Vec<u8> = Vec::with_capacity((k*k).into()); //Store all elemnents in a vector column-major order
+
+    // make first column : store variable FIRST_COLUMN
+    let first_col = p ^ 2_u16.pow(k.into()); // subtract 2^k from p to get first column 
+    
+    // fill in first column mtrx[0] 
+    fill_in_column(&mut mtrx, 0, first_col as u8);
+    
+    let mut previous_col: u16 = first_col;
+    for i in 1..k-1 {
+        previous_col <<= 1;
+        if (previous_col>2_u16.pow(k.into())){
+            previous_col -= 2_u16.pow(k.into()); 
+            previous_col ^= first_col;
+        } 
+        fill_in_column(&mut mtrx, i, previous_col as u8);
+    }
+
+    // begin loop from i = (1 .. k-1) (all remaining columns)
+        // shift PREVIOUS_COLUMN
+        // > 2^k ?
+        // --> true: subtract 2^k and XOR FIRST_COLUMN and fill in column
+        // --> false: fill in column
+    // end loop 
+    matrix_to_row_major_order(&mut mtrx);
+
+    mtrx
+}
+
+fn matrix_to_row_major_order(mtrx: &mut Vec<u8>) {
+    //TODO
+}
+
+fn fill_in_column(mtrx: &mut Vec<u8>,index: u8, column: u8) {
+    //TODO
+} 
+
+
 /// Divides a u16 that represents a polynomial by a quotient field's irreducible polynomial p.
 /// p = X^4 + X + 1
 ///  
@@ -425,7 +464,7 @@ pub fn is_power_of_2(x: u16) -> bool {
 pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
     let mut xbits = u8_to_bits(x, 8);
    
-    xbits[0] ^= xbits[4];
+    xbits[0] ^= xbits[4]; 
     xbits[1] ^= xbits[4] ^ xbits[5];
     xbits[2] ^= xbits[5] ^ xbits[6];
     xbits[3] ^= xbits[6];
