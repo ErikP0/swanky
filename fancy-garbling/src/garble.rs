@@ -534,7 +534,7 @@ mod complex {
 }
 
 #[cfg(test)]
-mod GF4 {
+mod GF4_nonstreaming {
 
     use crate::{
         circuit::{Circuit, CircuitBuilder},
@@ -544,7 +544,7 @@ mod GF4 {
         Modulus,
     };
     use itertools::Itertools;
-    use rand::{thread_rng, SeedableRng};
+    use rand::{thread_rng, SeedableRng, seq::SliceRandom};
     use scuttlebutt::{AesRng, Block};
 
     // helper
@@ -554,14 +554,14 @@ mod GF4 {
     {
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = rng.gen_prime();
-            let mut c = &mut f(&Modulus::Zq { q });
+            let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let mut c = &mut f(&p);
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
                 let mut inps = Vec::new();
                 for i in 0..c.num_evaluator_inputs() {
-                    let q = c.evaluator_input_mod(i);
-                    let x = rng.gen_u16() % q.size();
+                    let p = c.evaluator_input_mod(i);
+                    let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
                     inps.push(x);
                 }
                 // Run the garbled circuit evaluator.
@@ -575,11 +575,6 @@ mod GF4 {
         }
     }
 
-
-
-
-
-
     #[test] // add
     fn add_GF4() {
         garble_test_helper(|q| {
@@ -590,6 +585,264 @@ mod GF4 {
             b.output(&z).unwrap();
             b.finish()
         });
+    }
+
+    #[test] // add_many
+    fn add_many() {
+        garble_test_helper(|q| {
+            let mut b = CircuitBuilder::new();
+            let xs = b.evaluator_inputs(&vec![*q; 16]);
+            let z = b.add_many(&xs).unwrap();
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+    #[test] // sub
+    fn sub() {
+        garble_test_helper(|q| {
+            let mut b = CircuitBuilder::new();
+            let x = b.evaluator_input(q);
+            let y = b.evaluator_input(q);
+            let z = b.sub(&x, &y).unwrap();
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+    #[test] // cmul
+    fn cmul() {
+        garble_test_helper(|q| {
+            let mut b = CircuitBuilder::new();
+            let x = b.evaluator_input(q);
+            let z;
+            if q.size() > 2 {
+                z = b.cmul(&x, 2).unwrap();
+            } else {
+                z = b.cmul(&x, 1).unwrap();
+            }
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+    #[test] // proj_cycle
+    fn proj_cycle() {
+        garble_test_helper(|q| {
+            let mut tab = Vec::new();
+            for i in 0..q.size() {
+                tab.push((i + 1) % q.size());
+            }
+            let mut b = CircuitBuilder::new();
+            let x = b.evaluator_input(q);
+            let z = b.proj(&x, q, Some(tab)).unwrap();
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+    #[test] // proj_rand
+    fn proj_rand() {
+        garble_test_helper(|q| {
+            let mut rng = thread_rng();
+            let mut tab = Vec::new();
+            for _ in 0..q.size() {
+                tab.push(util::reduce_p_GF4(rng.gen_u16() as u8, q.value() as u8) as u16);
+            }
+            let mut b = CircuitBuilder::new();
+            let x = b.evaluator_input(q);
+            let z = b.proj(&x, q, Some(tab)).unwrap();
+            b.output(&z).unwrap();
+            b.finish()
+        });
+    }
+
+    #[test] // basic constants
+    fn basic_constant() {
+        let mut b = CircuitBuilder::new();
+        let mut rng = thread_rng();
+
+        let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+        let c = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+
+        let y = b.constant(c, &p).unwrap();
+        b.output(&y).unwrap();
+
+        let mut circ = b.finish();
+        let (_, ev) = garble(&mut circ).unwrap();
+
+        for _ in 0..64 {
+            let outputs = circ.eval_plain(&[], &[]).unwrap();
+            assert_eq!(outputs[0], c, "plaintext eval failed");
+            let outputs = ev.eval(&mut circ, &[], &[]).unwrap();
+            assert_eq!(outputs[0], c, "garbled eval failed");
+        }
+    }
+
+    #[test] // constants
+    fn constants() {
+        let mut b = CircuitBuilder::new();
+        let mut rng = thread_rng();
+
+        let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+        let c = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+
+        let x = b.evaluator_input(&p);
+        let y = b.constant(c, &p).unwrap();
+        let z = b.add(&x, &y).unwrap();
+        b.output(&z).unwrap();
+
+        let mut circ = b.finish();
+        let (en, ev) = garble(&mut circ).unwrap();
+
+        for _ in 0..64 {
+            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let outputs = circ.eval_plain(&[], &[x]).unwrap();
+            assert_eq!(outputs[0], x ^ c, "plaintext");
+
+            let X = en.encode_evaluator_inputs(&[x]);
+            let Y = ev.eval(&mut circ, &[], &X).unwrap();
+            assert_eq!(Y[0], x ^ c, "garbled");
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod GF4_streaming {
+    use crate::{
+        dummy::{Dummy, DummyVal},
+        util::{RngExt, self},
+        Evaluator,
+        Fancy,
+        FancyInput,
+        Garbler,
+        Wire,
+        Modulus,
+    };
+    use itertools::Itertools;
+    use rand::{thread_rng, seq::SliceRandom};
+    use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
+
+    // helper - checks that Streaming evaluation of a fancy function equals Dummy
+    // evaluation of the same function
+    fn streaming_test_GF4<FGB, FEV, FDU>(
+        mut f_gb: FGB,
+        mut f_ev: FEV,
+        mut f_du: FDU,
+        input_mods: &[Modulus],
+    ) where
+        FGB: FnMut(&mut Garbler<UnixChannel, AesRng>, &[Wire]) -> Option<u16> + Send + Sync,
+        FEV: FnMut(&mut Evaluator<UnixChannel>, &[Wire]) -> Option<u16>,
+        FDU: FnMut(&mut Dummy, &[DummyVal]) -> Option<u16>,
+    {
+        let mut rng = AesRng::new();
+        let inputs = input_mods.iter().map(|q| util::reduce_p_GF4(rng.gen_u16() as u8, q.value() as u8) as u16).collect_vec();
+
+        // evaluate f_gb as a dummy
+        let mut dummy = Dummy::new();
+        let dinps = dummy.encode_many(&inputs, input_mods).unwrap();
+        let should_be = f_du(&mut dummy, &dinps).unwrap();
+
+        let (sender, receiver) = unix_channel_pair();
+
+        crossbeam::scope(|s| {
+            s.spawn(move |_| {
+                let mut gb = Garbler::new(sender, rng);
+                let (gb_inp, ev_inp) = gb.encode_many_wires(&inputs, &input_mods).unwrap();
+                for w in ev_inp.iter() {
+                    gb.send_wire(w).unwrap();
+                }
+                f_gb(&mut gb, &gb_inp);
+            });
+
+            let mut ev = Evaluator::new(receiver);
+            let ev_inp = input_mods
+                .iter()
+                .map(|q| ev.read_wire(q).unwrap())
+                .collect_vec();
+            let result = f_ev(&mut ev, &ev_inp).unwrap();
+
+            assert_eq!(result, should_be)
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn addition() {
+        fn fancy_addition<F: Fancy>(b: &mut F, xs: &[F::Item]) -> Option<u16> {
+            let z = b.add(&xs[0], &xs[1]).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_addition(b, xs),
+                move |b, xs| fancy_addition(b, xs),
+                move |b, xs| fancy_addition(b, xs),
+                &[q, q],
+            );
+        }
+    }
+
+    #[test]
+    fn subtraction() {
+        fn fancy_subtraction<F: Fancy>(b: &mut F, xs: &[F::Item]) -> Option<u16> {
+            let z = b.sub(&xs[0], &xs[1]).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_subtraction(b, xs),
+                move |b, xs| fancy_subtraction(b, xs),
+                move |b, xs| fancy_subtraction(b, xs),
+                &[q, q],
+            );
+        }
+    }
+
+    #[test]
+    fn cmul() {
+        fn fancy_cmul<F: Fancy>(b: &mut F, xs: &[F::Item]) -> Option<u16> {
+            let z = b.cmul(&xs[0], 5).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_cmul(b, xs),
+                move |b, xs| fancy_cmul(b, xs),
+                move |b, xs| fancy_cmul(b, xs),
+                &[q],
+            );
+        }
+    }
+
+    #[test]
+    fn proj() {
+        fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+            let tab = (0..q.size()).map(|i| (i + 1) % q.size()).collect_vec();
+            let z = b.proj(&xs[0], q, Some(tab)).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                &[q],
+            );
+        }
     }
 
 

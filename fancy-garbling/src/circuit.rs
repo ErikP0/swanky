@@ -384,6 +384,7 @@ impl Fancy for CircuitBuilder {
         tt: Option<Vec<u16>>,
     ) -> Result<CircuitRef, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
+        println!("len tt: {}, x mod: {}, out mod: {}", tt.len(), xref.modulus(), output_modulus);
         if tt.len() < match xref.modulus() {
                         Modulus::Zq { q } => q as usize,
                         Modulus::GF4 { .. } => 16,
@@ -1106,13 +1107,12 @@ mod bundle {
 
 #[cfg(test)]
 mod GF4 {
-    use super::*;
+    use rand::thread_rng;
+use super::*;
     use crate::{
-        fancy::{BinaryGadgets, BundleGadgets, CrtGadgets},
-        util::{self, crt_factor, crt_inv_factor, RngExt},
+        util::{self, RngExt},
     };
-    use itertools::Itertools;
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::seq::SliceRandom;
 
     #[test] // GF4 input and output {{{
         fn test_GF4_input_output() {
@@ -1177,7 +1177,6 @@ mod GF4 {
         //}}}
         #[test] // bundle cmul {{{
         fn test_GF4_cmul() {
-            let mut rng = thread_rng();
             let p = Modulus::GF4 { p: 19 };
     
             let mut b = CircuitBuilder::new();
@@ -1187,12 +1186,10 @@ mod GF4 {
             b.output(&z).unwrap();
             let c = b.finish();
     
-            for _ in 0..16 {
-                let x = &[2_u16.pow(3)+1];
-                let res = c.eval_plain(x, &[]).unwrap();
-                println!("res: {:?}   shouldbe: {}", res, 2_u16.pow(3)+2_u16.pow(2)+2);
-                assert_eq!(res[0], 2_u16.pow(3)+2_u16.pow(2)+2);
-            }
+            // add for loop later?
+            let x = &[2_u16.pow(3)+1];
+            let res = c.eval_plain(x, &[]).unwrap();
+            assert_eq!(res[0], 2_u16.pow(3)+2_u16.pow(2)+2);
         }
         //}}}
 }
