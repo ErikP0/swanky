@@ -16,6 +16,7 @@ use itertools::Itertools;
 use scuttlebutt::Block;
 use serde_json::map;
 use std::collections::HashMap;
+use ndarray::{arr1,Array2,ShapeBuilder};
 
 ////////////////////////////////////////////////////////////////////////////////
 // tweak functions for garbling
@@ -415,13 +416,13 @@ pub fn is_power_of_2(x: u16) -> bool {
 }
 
 pub fn construct_reduction_matrix(p: u16, k: u8) -> Vec<u8> {
-    let mut mtrx: Vec<u8> = Vec::with_capacity((k*k).into()); //Store all elemnents in a vector column-major order
+    let mut mtrx: Vec<u8> = vec![0; (k*(k-1)).into()]; //Store all elemnents in a vector column-major order
 
     // make first column : store variable FIRST_COLUMN
     let first_col = p ^ 2_u16.pow(k.into()); // subtract 2^k from p to get first column 
     
     // fill in first column mtrx[0] 
-    fill_in_column(&mut mtrx, 0, first_col as u8);
+    fill_in_column(&mut mtrx, 0, first_col as u8, k);
     
     let mut previous_col: u16 = first_col;
     for i in 1..k-1 {
@@ -430,26 +431,31 @@ pub fn construct_reduction_matrix(p: u16, k: u8) -> Vec<u8> {
             previous_col -= 2_u16.pow(k.into()); 
             previous_col ^= first_col;
         } 
-        fill_in_column(&mut mtrx, i, previous_col as u8);
+        fill_in_column(&mut mtrx, i, previous_col as u8, k);
     }
-
-    // begin loop from i = (1 .. k-1) (all remaining columns)
-        // shift PREVIOUS_COLUMN
-        // > 2^k ?
-        // --> true: subtract 2^k and XOR FIRST_COLUMN and fill in column
-        // --> false: fill in column
-    // end loop 
-    matrix_to_row_major_order(&mut mtrx);
 
     mtrx
 }
 
-fn matrix_to_row_major_order(mtrx: &mut Vec<u8>) {
-    //TODO
-}
+// This function is only valid for a a matrix of dimension (k x k-1) 
+// fn matrix_to_row_major_order(mtrx: & Vec<u8>, k: u8) -> Vec<u8> {
+//     let mut output_mtrx: Vec<u8> = vec![0; (k*(k-1)).into()];
 
-fn fill_in_column(mtrx: &mut Vec<u8>,index: u8, column: u8) {
-    //TODO
+//     for i in 0..k {
+//         for j in 0..k-1 {
+//             output_mtrx[(i*(k-1) + j) as usize] = mtrx[(j*k + i) as usize];
+//         }
+//     }
+
+//     output_mtrx
+// }
+
+fn fill_in_column(mtrx: &mut Vec<u8>,index: u8, column: u8, k: u8) {
+    let column_bits = &u8_to_bits(column, 8)[0..k as usize];
+
+    for i in 0..column_bits.len() {
+        mtrx[(index*k) as usize + i] = column_bits[i];
+    }
 } 
 
 
@@ -462,15 +468,21 @@ fn fill_in_column(mtrx: &mut Vec<u8>,index: u8, column: u8) {
 /// C2 = c2 + c5 + c6
 /// C3 = c3 + c6
 pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
-    let mut xbits = u8_to_bits(x, 8);
+    let matrix = Array2::from_shape_vec((4,3).strides((1,4)), construct_reduction_matrix(p as u16, 4)).unwrap();
+ 
+    let xbits = u8_to_bits(x, 8);
+    let mut vector1 = arr1(&xbits[0..4]);
+    let vector2 = arr1(&xbits[4..7]);
    
-    xbits[0] ^= xbits[4]; 
-    xbits[1] ^= xbits[4] ^ xbits[5];
-    xbits[2] ^= xbits[5] ^ xbits[6];
-    xbits[3] ^= xbits[6];
-    (xbits[4], xbits[5], xbits[6] ,xbits[7]) = (0, 0, 0, 0);
+    let new_vector = matrix.dot(&vector2);
+    vector1 += &new_vector;
 
-    u8_from_bits(&xbits)
+    vector1.iter_mut().for_each(|c| *c = *c % 2);
+
+    let mut result = vector1.to_vec();
+
+    result.append(&mut vec![0,0,0,0]);
+    u8_from_bits(&result)
 }
 
 // Generate deltas for GC
@@ -569,6 +581,8 @@ impl<R: rand::Rng + Sized> RngExt for R {}
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::{*, reduce_p_GF4};
     use crate::util::RngExt;
     use rand::{thread_rng, seq::SliceRandom};
@@ -638,14 +652,24 @@ mod tests {
         assert!(array.iter().all(|el| *el == *el as u8));
     }
 
-    #[test]
+   
+
+    #[test] 
     fn reduce_poly_GF4() {
-        let mut rng = thread_rng();
-        let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-        let x = rng.gen_u16() as u8;
-        let redx = reduce_p_GF4(x, p);
-        assert_eq!(redx>>4, 0);
+        let x_reduced = reduce_p_GF4(16, 19);
+        let correct = 3;
+        assert_eq!(x_reduced,correct);
+        let x_reduced = reduce_p_GF4(16, 25);
+        let correct = 9; 
+        assert_eq!(x_reduced,correct);
     }
+
+    #[test]
+    fn reduction_matrix_GF4() {
+        let matrix = construct_reduction_matrix(19 , 4);
+        let correct_matrix: Vec<u8> = vec![1,1,0,0,0,1,1,0,0,0,1,1];
+        assert_eq!(matrix,correct_matrix);
+    }  
 }
 
 #[cfg(all(feature = "nightly", test))]
