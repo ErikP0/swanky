@@ -306,62 +306,101 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let tt = tt.ok_or(GarblerError::TruthTableRequired)?;
 
         let mod_in = A.modulus();
-        let q_in:u16; let q_out:u16;
+        // let q_in:u16; let q_out:u16;
         let Din: Wire; let Dout: Wire;
 
+        let mut gate = vec![Block::default(); mod_in.size() as usize - 1];
+
+        let tao = A.color();
+        let g = tweak(self.current_gate());
+        let C: Wire;
+
         if let (Modulus::Zq { q: q_i}, Modulus::Zq { q: q_o }) = (mod_in, *mod_out) {
-            (q_in, q_out) = (q_i, q_o);
-            Din = self.delta(&Modulus::Zq { q: q_in});
-            Dout = self.delta(&Modulus::Zq { q: q_out });
+            // (q_in, q_out) = (q_i, q_o);
+            Din = self.delta(&Modulus::Zq { q: q_i});
+            Dout = self.delta(&Modulus::Zq { q: q_o });
+
+            // output zero-wire
+            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+            C = A
+                .plus(&Din.cmul((q_i - tao) % q_i))          // rotate negative -tao over mod q_in
+                .hashback(g, q_o)
+                .plus_mov(&Dout.cmul((q_o - tt[((q_i - tao) % q_i) as usize]) % q_o));
+
+            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+            let C_precomputed = {
+                let mut C_ = C.clone();
+                (0..q_o)
+                    .map(|x| {
+                        if x > 0 {
+                            C_.plus_eq(&Dout);
+                        }
+                        C_.as_block()
+                    })
+                    .collect::<Vec<Block>>()
+            };
+
+            let mut A_ = A.clone();
+            for x in 0..q_i {
+                if x > 0 {
+                    A_.plus_eq(&Din); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                }
+
+                let ix = (tao as usize + x as usize) % q_i as usize;
+                if ix == 0 {
+                    continue;
+                }
+
+                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                gate[ix - 1] = ct;
+            }
         }
         else if let (Modulus::GF4 { p: p_in}, Modulus::GF4 { p: p_out }) = (mod_in, *mod_out) {
-            (q_in, q_out) = (p_in as u16, p_out as u16);
+            // (q_in, q_out) = (p_in as u16, p_out as u16);
             Din = self.delta(&Modulus::GF4 { p: p_in});
             Dout = self.delta(&Modulus::GF4 { p: p_out });
+
+            // output zero-wire
+            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+            C = A
+                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao ?
+                .hashback(g, p_out as u16)
+                .plus_mov(&Dout.cmul(tt[(tao) as usize])); // again negating does nothing ? + reduce wrt p_out
+
+            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+            let mut C_ = C.clone();
+            let C_precomputed = {
+                (0..16)
+                    .map(|x| {
+                        C_ = C.clone();
+                        if x > 0 {
+                            C_.plus_eq(&Dout.cmul(x));
+                        }
+                        C_.as_block()
+                    })
+                    .collect::<Vec<Block>>()
+            };
+
+            let mut A_ = A.clone();
+            for x in 0..16 {
+                if x > 0 {
+                    A_ = A.clone();
+                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                }
+
+                let ix = (tao ^ x) as usize;
+                if ix == 0 {
+                    continue;
+                }
+
+                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                gate[ix - 1] = ct;
+            }
         }
         else {
             return Err(GarblerError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
         }                
-
-        let mut gate = vec![Block::default(); q_in as usize - 1];
-
-        let tao = A.color();
-        let g = tweak(self.current_gate());
-
-        // output zero-wire
-        // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
-        let C = A
-            .plus(&Din.cmul((q_in - tao) % q_in))          // rotate negative -tao over mod q_in
-            .hashback(g, q_out)
-            .plus_mov(&Dout.cmul((q_out - tt[((q_in - tao) % q_in) as usize]) % q_out));
-
-        // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
-        let C_precomputed = {
-            let mut C_ = C.clone();
-            (0..q_out)
-                .map(|x| {
-                    if x > 0 {
-                        C_.plus_eq(&Dout);
-                    }
-                    C_.as_block()
-                })
-                .collect::<Vec<Block>>()
-        };
-
-        let mut A_ = A.clone();
-        for x in 0..q_in {
-            if x > 0 {
-                A_.plus_eq(&Din); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
-            }
-
-            let ix = (tao as usize + x as usize) % q_in as usize;
-            if ix == 0 {
-                continue;
-            }
-
-            let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
-            gate[ix - 1] = ct;
-        }
+        
 
         for block in gate.iter() {
             self.channel.write_block(block)?;

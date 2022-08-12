@@ -167,7 +167,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         }
         let t = tweak(self.current_gate());
         if x.color() == 0 {
-            Ok(x.hashback(t, modulus.size()))
+            Ok(x.hashback(t, modulus.value()))
         } else {
             let ct = gate[x.color() as usize - 1];
             Ok(Wire::from_block(ct ^ x.hash(t), modulus))
@@ -175,12 +175,12 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     }
 
     fn output(&mut self, x: &Wire) -> Result<Option<u16>, EvaluatorError> {
-        let q = x.modulus();
+        let modulus = x.modulus();
         let i = self.current_output();
         let mut decoded = None;
 
         // Receive the output ciphertext from the garbler
-        match q {
+        match modulus {
             Modulus::Zq { q } => {
                 let ct = self.channel.read_blocks(q as usize)?;
                 // Attempt to brute force x using the output ciphertext

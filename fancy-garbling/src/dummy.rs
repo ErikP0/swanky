@@ -159,29 +159,23 @@ impl Fancy for Dummy {
         tt: Option<Vec<u16>>,
     ) -> Result<DummyVal, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
-        let xmodulus = match x.modulus() {
-            Modulus::Zq { q } => q,
-            Modulus::GF4 { p } => p as u16,
-        };
+        let xmodulus = x.modulus();
 
         match *modulus {
             Modulus::Zq { q } => {
-                if tt.len() < xmodulus as usize || !tt.iter().all(|&x| x < q) {
+                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < q) {
                     return Err(Self::Error::from(FancyError::InvalidTruthTable));
                 }
             },
-            Modulus::GF4 { p } => {
-                if tt.len() < xmodulus as usize || !tt.iter().all(|&x| x < p as u16) {
+            Modulus::GF4 { .. } => {
+                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x == util::reduce_p_GF4(x as u8, xmodulus.value() as u8) as u16) {
                     return Err(Self::Error::from(FancyError::InvalidTruthTable));
                 }
             }
         }
-
-
-
-
        
         let val = tt[x.val as usize];
+        println!("xval: {}, val: {}, tt: {:?}", x.val, val, tt);
         Ok(DummyVal { val, modulus: *modulus })
     }
 

@@ -384,7 +384,6 @@ impl Fancy for CircuitBuilder {
         tt: Option<Vec<u16>>,
     ) -> Result<CircuitRef, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
-        println!("len tt: {}, x mod: {}, out mod: {}", tt.len(), xref.modulus(), output_modulus);
         if tt.len() < match xref.modulus() {
                         Modulus::Zq { q } => q as usize,
                         Modulus::GF4 { .. } => 16,

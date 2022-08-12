@@ -153,7 +153,6 @@ mod nonstreaming {
         garble_test_helper(|q| {
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
-            // println!("x {}", x);
             let z = b.mod_change(&x, q.size() * 2).unwrap();
             b.output(&z).unwrap();
             b.finish()
@@ -827,6 +826,26 @@ mod GF4_streaming {
 
     #[test]
     fn proj() {
+        fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+            let tab = (0..q.size()).map(|i| (i + 1) % q.size()).collect_vec();
+            let z = b.proj(&xs[0], q, Some(tab)).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_projection(b, xs, &q),
+                &[q],
+            );
+        }
+    }
+
+    #[test]
+    fn projproj() {
         fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
             let tab = (0..q.size()).map(|i| (i + 1) % q.size()).collect_vec();
             let z = b.proj(&xs[0], q, Some(tab)).unwrap();
