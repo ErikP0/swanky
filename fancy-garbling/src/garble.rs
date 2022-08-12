@@ -538,13 +538,11 @@ mod GF4_nonstreaming {
     use crate::{
         circuit::{Circuit, CircuitBuilder},
         classic::garble,
-        fancy::{Bundle, BundleGadgets, Fancy},
+        fancy::Fancy,
         util::{self, RngExt},
         Modulus,
     };
-    use itertools::Itertools;
-    use rand::{thread_rng, SeedableRng, seq::SliceRandom};
-    use scuttlebutt::{AesRng, Block};
+    use rand::{thread_rng, seq::SliceRandom};
 
     // helper
     fn garble_test_helper<F>(f: F)

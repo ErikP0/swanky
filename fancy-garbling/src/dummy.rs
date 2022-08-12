@@ -175,7 +175,7 @@ impl Fancy for Dummy {
         }
        
         let val = tt[x.val as usize];
-        println!("xval: {}, val: {}, tt: {:?}", x.val, val, tt);
+        // println!("xval: {}, val: {}, tt: {:?}", x.val, val, tt);
         Ok(DummyVal { val, modulus: *modulus })
     }
 

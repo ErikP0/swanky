@@ -1191,4 +1191,24 @@ use super::*;
             assert_eq!(res[0], 2_u16.pow(3)+2_u16.pow(2)+2);
         }
         //}}}
+
+        #[test] // GF4 proj {{{
+        fn test_GF4_proj() {
+            let mut rng = thread_rng();
+            let p = Modulus::GF4 { p: 19 };
+    
+            let mut b = CircuitBuilder::new();
+            let x = b.garbler_input(&p);
+            let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
+            let z = b.proj(&x, &p, Some(tab)).unwrap();
+            b.output(&z).unwrap();
+            let c = b.finish();
+    
+            for _ in 0..16 {
+                let x = &[util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16];
+                let res = c.eval_plain(x, &[]).unwrap();
+                assert_eq!(res[0], (x[0]*9 + 1) % p.size());
+            }
+        }
+        //}}}
 }

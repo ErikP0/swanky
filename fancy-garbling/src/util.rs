@@ -427,7 +427,7 @@ pub fn construct_reduction_matrix(p: u16, k: u8) -> Vec<u8> {
     let mut previous_col: u16 = first_col;
     for i in 1..k-1 {
         previous_col <<= 1;
-        if (previous_col>2_u16.pow(k.into())){
+        if previous_col>2_u16.pow(k.into()){
             previous_col -= 2_u16.pow(k.into()); 
             previous_col ^= first_col;
         } 
@@ -585,7 +585,7 @@ mod tests {
 
     use super::{*, reduce_p_GF4};
     use crate::util::RngExt;
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::{thread_rng};
 
     #[test]
     fn crt_conversion() {
