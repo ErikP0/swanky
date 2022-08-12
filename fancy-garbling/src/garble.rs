@@ -742,6 +742,7 @@ mod GF4_streaming {
         let mut dummy = Dummy::new();
         let dinps = dummy.encode_many(&inputs, input_mods).unwrap();
         let should_be = f_du(&mut dummy, &dinps).unwrap();
+        println!("inp: {} -> {}", inputs[0], should_be);
 
         let (sender, receiver) = unix_channel_pair();
 
@@ -846,9 +847,11 @@ mod GF4_streaming {
 
     #[test]
     fn projproj() {
-        fn fancy_projection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+        fn fancy_2xprojection<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
             let tab = (0..q.size()).map(|i| (i + 1) % q.size()).collect_vec();
-            let z = b.proj(&xs[0], q, Some(tab)).unwrap();
+            let y = b.proj(&xs[0], q, Some(tab)).unwrap();
+            let tab2 = (0..q.size()).map(|i| (i + 5) % q.size()).collect_vec();
+            let z = b.proj(&y, q, Some(tab2)).unwrap();
             b.output(&z).unwrap()
         }
 
@@ -856,13 +859,59 @@ mod GF4_streaming {
         for _ in 0..16 {
             let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
             streaming_test_GF4(
-                move |b, xs| fancy_projection(b, xs, &q),
-                move |b, xs| fancy_projection(b, xs, &q),
-                move |b, xs| fancy_projection(b, xs, &q),
+                move |b, xs| fancy_2xprojection(b, xs, &q),
+                move |b, xs| fancy_2xprojection(b, xs, &q),
+                move |b, xs| fancy_2xprojection(b, xs, &q),
                 &[q],
             );
         }
     }
 
+    #[test]
+    fn addproj() {
+        fn fancy_addproj<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+            let y = b.add(&xs[0], &xs[1]).unwrap();
+            let tab = (0..q.size()).map(|i| (i + 5) % q.size()).collect_vec();
+            let z = b.proj(&y, q, Some(tab)).unwrap();
+            b.output(&z).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_addproj(b, xs, &q),
+                move |b, xs| fancy_addproj(b, xs, &q),
+                move |b, xs| fancy_addproj(b, xs, &q),
+                &[q, q],
+            );
+        }
+    }
+
+    #[test]
+    fn all_op() {
+        fn fancy_allop<F: Fancy>(b: &mut F, xs: &[F::Item], q: &Modulus) -> Option<u16> {
+            let y = b.add(&xs[0], &xs[1]).unwrap();
+            let tab = (0..q.size()).map(|i| (i + 5) % q.size()).collect_vec();
+            let z = b.proj(&y, q, Some(tab)).unwrap();
+            let tab2 = (0..q.size()).map(|i| (i * 5) % q.size()).collect_vec();
+            let z2 = b.proj(&y, q, Some(tab2)).unwrap();
+
+            let a = b.sub(&z, &z2).unwrap();
+            let a2 = b.cmul(&a, 12).unwrap();
+            b.output(&a2).unwrap()
+        }
+
+        let mut rng = thread_rng();
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            streaming_test_GF4(
+                move |b, xs| fancy_allop(b, xs, &q),
+                move |b, xs| fancy_allop(b, xs, &q),
+                move |b, xs| fancy_allop(b, xs, &q),
+                &[q, q],
+            );
+        }
+    }
 
 }
