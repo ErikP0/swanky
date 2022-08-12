@@ -757,3 +757,93 @@ mod pmr_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod GF4_dummy {
+    use super::*;
+    use crate::{
+        util::{self, RngExt},
+    };
+    use itertools::Itertools;
+    use rand::{thread_rng, seq::SliceRandom};
+
+    const NITERS: usize = 1 << 10;
+
+    #[test]
+    fn test_addition() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.add(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_subtraction() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.sub(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_cmul() {
+        // let mut rng = thread_rng();
+        for _ in 0..NITERS { // iterate over possibilities?
+            let p = Modulus::GF4 { p: 19 };
+            let x = 2_u16.pow(3)+1;
+            let c = 2_u16.pow(3)+2_u16.pow(2)+2+1;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let z = d.cmul(&x, c).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, 2_u16.pow(3)+2_u16.pow(2)+2);
+        }
+    }
+
+    #[test]
+        fn test_proj() {
+            let mut rng = thread_rng();
+            for _ in 0..NITERS {
+                let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+        
+                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+                let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
+                let mut d = Dummy::new();
+                let out;
+                
+                {
+                    let x = d.encode(x, &p).unwrap();
+                    let z = d.proj(&x, &p, Some(tab)).unwrap();
+                    out = d.output(&z).unwrap().unwrap();
+                }
+                assert_eq!(out, (x*9 + 1) % p.size());
+            
+            }
+        }
+        //}}}
+}

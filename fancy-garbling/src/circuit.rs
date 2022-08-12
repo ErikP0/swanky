@@ -1081,29 +1081,6 @@ mod bundle {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod GF4 {
     use rand::thread_rng;
@@ -1195,7 +1172,7 @@ use super::*;
         #[test] // GF4 proj {{{
         fn test_GF4_proj() {
             let mut rng = thread_rng();
-            let p = Modulus::GF4 { p: 19 };
+            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
     
             let mut b = CircuitBuilder::new();
             let x = b.garbler_input(&p);
