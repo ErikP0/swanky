@@ -433,7 +433,7 @@ impl Wire {
             },
             Wire::GF4 { p, elts } => {
                 elts.iter_mut().for_each(|d| {
-                    *d = util::mul_GF4(*d as u8 , c as u8, *p) as u16;
+                    *d = util::field_mul(*d as u8, c as u8, *p, 4) as u16;
                 });
             }
         }
@@ -794,9 +794,6 @@ mod tests {
     #[test]
     fn cmul_arithmeticGF4() {
         let mut rng = thread_rng();
-        // x^4 * 1 = x + 1 
-        let w = Wire::GF4 { p: (19), elts: vec![16]}; 
-        assert_eq!(w.cmul(1), Wire::GF4 { p: (19), elts: vec![3] });
 
         // (x³ + 1) * (x³ + x) = x² + 1
         let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 1]}; 
