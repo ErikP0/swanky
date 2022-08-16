@@ -1084,10 +1084,7 @@ mod bundle {
 #[cfg(test)]
 mod GF4 {
     use rand::{thread_rng, Rng};
-use super::*;
-    use crate::{
-        util::{self, RngExt},
-    };
+    use super::*;   
     use rand::seq::SliceRandom;
 
     #[test] // GF4 input and output {{{

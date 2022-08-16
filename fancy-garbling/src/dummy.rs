@@ -759,9 +759,6 @@ mod pmr_tests {
 #[cfg(test)]
 mod GF4_dummy {
     use super::*;
-    use crate::{
-        util::{self, RngExt},
-    };
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};
 

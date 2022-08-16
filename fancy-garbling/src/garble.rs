@@ -539,7 +539,6 @@ mod GF4_nonstreaming {
         circuit::{Circuit, CircuitBuilder},
         classic::garble,
         fancy::Fancy,
-        util::{self, RngExt},
         Modulus,
     };
     use rand::{thread_rng, seq::SliceRandom, Rng};
@@ -709,7 +708,6 @@ mod GF4_nonstreaming {
 mod GF4_streaming {
     use crate::{
         dummy::{Dummy, DummyVal},
-        util::{RngExt, self},
         Evaluator,
         Fancy,
         FancyInput,
@@ -734,7 +732,7 @@ mod GF4_streaming {
         FDU: FnMut(&mut Dummy, &[DummyVal]) -> Option<u16>,
     {
         let mut rng = AesRng::new();
-        let inputs = input_mods.iter().map(|q| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let inputs = input_mods.iter().map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
 
         // evaluate f_gb as a dummy
         let mut dummy = Dummy::new();
