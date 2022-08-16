@@ -140,9 +140,7 @@ impl Fancy for Dummy {
         let result = match x.modulus() {
             Modulus::Zq { q } => (x.val * y.val) % q,
             Modulus::GF4 { p } => {
-                // + check if x.p & y.p equal?
-                let temp = x.val * y.val;
-                util::reduce_p_GF4(temp as u8, p ) as u16
+                util::field_mul(x.val as u8, y.val as u8 , p, 4) as u16
             },
         };
 
@@ -168,7 +166,7 @@ impl Fancy for Dummy {
                 }
             },
             Modulus::GF4 { .. } => {
-                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x == util::reduce_p_GF4(x as u8, xmodulus.value() as u8) as u16) {
+                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 16) {
                     return Err(Self::Error::from(FancyError::InvalidTruthTable));
                 }
             }
@@ -765,7 +763,7 @@ mod GF4_dummy {
         util::{self, RngExt},
     };
     use itertools::Itertools;
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::{thread_rng, seq::SliceRandom, Rng};
 
     const NITERS: usize = 1 << 10;
 
@@ -774,8 +772,8 @@ mod GF4_dummy {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
             let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
-            let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let x = (rng.gen::<u8>()&(15)) as u16;
+            let y = (rng.gen::<u8>()&(15)) as u16;
             let mut d = Dummy::new();
             let out;
             {
@@ -793,8 +791,8 @@ mod GF4_dummy {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
             let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
-            let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let x = (rng.gen::<u8>()&(15)) as u16;
+            let y = (rng.gen::<u8>()&(15)) as u16;
             let mut d = Dummy::new();
             let out;
             {
@@ -831,7 +829,7 @@ mod GF4_dummy {
             for _ in 0..NITERS {
                 let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
         
-                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+                let x = (rng.gen::<u8>()&(15)) as u16;
                 let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
                 let mut d = Dummy::new();
                 let out;

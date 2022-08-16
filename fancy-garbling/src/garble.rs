@@ -542,7 +542,7 @@ mod GF4_nonstreaming {
         util::{self, RngExt},
         Modulus,
     };
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::{thread_rng, seq::SliceRandom, Rng};
 
     // helper
     fn garble_test_helper<F>(f: F)
@@ -558,7 +558,7 @@ mod GF4_nonstreaming {
                 let mut inps = Vec::new();
                 for i in 0..c.num_evaluator_inputs() {
                     let p = c.evaluator_input_mod(i);
-                    let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+                    let x = (rng.gen::<u8>()&(15)) as u16;
                     inps.push(x);
                 }
                 // Run the garbled circuit evaluator.
@@ -644,7 +644,7 @@ mod GF4_nonstreaming {
             let mut rng = thread_rng();
             let mut tab = Vec::new();
             for _ in 0..q.size() {
-                tab.push(util::reduce_p_GF4(rng.gen_u16() as u8, q.value() as u8) as u16);
+                tab.push((rng.gen::<u8>()&(15)) as u16);
             }
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
@@ -660,7 +660,7 @@ mod GF4_nonstreaming {
         let mut rng = thread_rng();
 
         let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-        let c = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+        let c = (rng.gen::<u8>()&(15)) as u16;
 
         let y = b.constant(c, &p).unwrap();
         b.output(&y).unwrap();
@@ -682,7 +682,7 @@ mod GF4_nonstreaming {
         let mut rng = thread_rng();
 
         let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-        let c = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+        let c = (rng.gen::<u8>()&(15)) as u16;
 
         let x = b.evaluator_input(&p);
         let y = b.constant(c, &p).unwrap();
@@ -693,7 +693,7 @@ mod GF4_nonstreaming {
         let (en, ev) = garble(&mut circ).unwrap();
 
         for _ in 0..64 {
-            let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+            let x = (rng.gen::<u8>()&(15)) as u16;
             let outputs = circ.eval_plain(&[], &[x]).unwrap();
             assert_eq!(outputs[0], x ^ c, "plaintext");
 
@@ -718,7 +718,7 @@ mod GF4_streaming {
         Modulus,
     };
     use itertools::Itertools;
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::{thread_rng, seq::SliceRandom, Rng};
     use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
 
     // helper - checks that Streaming evaluation of a fancy function equals Dummy
@@ -734,7 +734,7 @@ mod GF4_streaming {
         FDU: FnMut(&mut Dummy, &[DummyVal]) -> Option<u16>,
     {
         let mut rng = AesRng::new();
-        let inputs = input_mods.iter().map(|q| util::reduce_p_GF4(rng.gen_u16() as u8, q.value() as u8) as u16).collect_vec();
+        let inputs = input_mods.iter().map(|q| (rng.gen::<u8>()&(15)) as u16).collect_vec();
 
         // evaluate f_gb as a dummy
         let mut dummy = Dummy::new();

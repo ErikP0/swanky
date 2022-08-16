@@ -534,7 +534,7 @@ mod plaintext {
     use super::*;
     use crate::util::{RngExt, self};
     use itertools::Itertools;
-    use rand::{thread_rng, seq::SliceRandom};
+    use rand::{thread_rng, seq::SliceRandom, Rng};
 
     #[test] // {{{ and_gate_fan_n
     fn and_gate_fan_n() {
@@ -550,7 +550,7 @@ mod plaintext {
         for _ in 0..16 {
             let mut inps: Vec<u16> = Vec::new();
             for _ in 0..n {
-                inps.push(rng.gen_bool() as u16);
+                inps.push(RngExt::gen_bool(&mut rng) as u16);
             }
             let res = inps.iter().fold(1, |acc, &x| x & acc);
             let out = c.eval_plain(&[], &inps).unwrap()[0];
@@ -574,7 +574,7 @@ mod plaintext {
         for _ in 0..16 {
             let mut inps: Vec<u16> = Vec::new();
             for _ in 0..n {
-                inps.push(rng.gen_bool() as u16);
+                inps.push(RngExt::gen_bool(&mut rng) as u16);
             }
             let res = inps.iter().fold(0, |acc, &x| x | acc);
             let out = c.eval_plain(&[], &inps).unwrap()[0];
@@ -679,7 +679,7 @@ mod plaintext {
             let mut rng = thread_rng();
     
             let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-            let c = util::reduce_p_GF4(rng.gen_u16() as u8, p);
+            let c = (rng.gen::<u8>()&(15)) as u16;
     
             let x = b.evaluator_input(&Modulus::GF4 { p });
             let y = b.constant(c as u16, &Modulus::GF4 { p }).unwrap();
@@ -689,7 +689,7 @@ mod plaintext {
             let circ = b.finish();
     
             for _ in 0..64 {
-                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p);
+                let x = (rng.gen::<u8>()&(15)) as u16;
                 let z = circ.eval_plain(&[], &[x as u16]).unwrap();
                 assert_eq!(z[0], (x ^ c) as u16);
             }
@@ -1083,7 +1083,7 @@ mod bundle {
 
 #[cfg(test)]
 mod GF4 {
-    use rand::thread_rng;
+    use rand::{thread_rng, Rng};
 use super::*;
     use crate::{
         util::{self, RngExt},
@@ -1103,7 +1103,7 @@ use super::*;
             println!("{:?}", c.output_refs);
     
             for _ in 0..16 {
-                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p) ;
+                let x = rng.gen::<u8>()&(15);
                 let res = c.eval_plain(&[x as u16], &[]).unwrap();
                 println!("{:?}", res);
                 assert_eq!(x as u16, res[0]);
@@ -1124,8 +1124,8 @@ use super::*;
             let c = b.finish();
     
             for _ in 0..16 {
-                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) ;
-                let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) ;
+                let x = rng.gen::<u8>()&(15);
+                let y = rng.gen::<u8>()&(15);
                 let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
                 assert_eq!(res[0], (x ^ y) as u16);
             }
@@ -1144,8 +1144,8 @@ use super::*;
             let c = b.finish();
     
             for _ in 0..16 {
-                let x = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
-                let y = util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16;
+                let x = (rng.gen::<u8>()&(15)) as u16;
+                let y = (rng.gen::<u8>()&(15)) as u16;
                 let res = c.eval_plain(&[x], &[y]).unwrap();
                 assert_eq!(res[0], (x ^ y));
             }
@@ -1182,7 +1182,7 @@ use super::*;
             let c = b.finish();
     
             for _ in 0..16 {
-                let x = &[util::reduce_p_GF4(rng.gen_u16() as u8, p.value() as u8) as u16];
+                let x = &[(rng.gen::<u8>()&(15)) as u16];
                 let res = c.eval_plain(x, &[]).unwrap();
                 assert_eq!(res[0], (x[0]*9 + 1) % p.size());
             }

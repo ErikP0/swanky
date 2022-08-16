@@ -525,7 +525,7 @@ impl Wire {
             },
             Modulus::GF4 { p } => {
                 let elts = (0..32)
-                    .map(|_| (util::reduce_p_GF4(rng.gen::<u8>(), p)) as u16)
+                    .map(|_| (rng.gen::<u8>()&(15)) as u16)
                     .collect();
                 Wire::GF4 { p, elts }
             },
