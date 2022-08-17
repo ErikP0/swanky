@@ -54,6 +54,22 @@ pub enum Wire {
         /// A list of GF(2^4) elements.
         elts: Vec<u16>,
     },
+    /// Representation of a wire in GF(2^8)
+    GF8 {
+        /// Irreducible polynomial
+        p: u16,
+        /// A list of GF(2^4) elements
+        elts: Vec<u16>,
+    },
+    /// Representation of a wire in GF(2^k)
+    GFk {
+        /// k
+        k: u8,
+        /// Irreducible polynomial.
+        p: u16,
+        /// A list of GF(2^4) elements.
+        elts: Vec<u16>,
+    },
 }
 
 /// Modulus type, either an integer modulus for Zq, or an irreducible polynomial representation for GF(2^k)
@@ -68,13 +84,24 @@ pub enum Modulus {
     GF4 {
         p: u8,
     },
+    /// Irreducible polynomial for GF(2^8).
+    GF8 {
+        p: u16,
+    },
+    /// Irreducible polynomial for GF(2^k).
+    GFk {
+        k: u8, 
+        p: u16,
+    },
 }
 
 impl std::fmt::Display for Modulus {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
-            Modulus::Zq { q } => write!(fmt, "modulus q = {}", q),
-            Modulus::GF4 { p } => write!(fmt, "irreducible polynomial p = {}", p)
+            Modulus::Zq { q } => write!(fmt, "modulus q = {} (Zq)", q),
+            Modulus::GF4 { p } => write!(fmt, "irreducible polynomial p = {} (GF4)", p), 
+            Modulus::GF8 { p } => write!(fmt, "irreducible polynomial p = {} (GF8)",p),
+            Modulus::GFk { k, p } => write!(fmt, "irreducible polynomial p = {} (GF{})",p,k),
         }
     }
 }
@@ -92,6 +119,8 @@ impl Modulus {
         match self {
             Modulus::Zq { q } => *q,
             Modulus::GF4 { p } => *p as u16 ,
+            Modulus::GF8 { p } => *p,
+            Modulus::GFk { k: _, p } => *p,
         }
     }
 
@@ -99,6 +128,8 @@ impl Modulus {
         match self {
             Modulus::Zq { q } => *q,
             Modulus::GF4 { .. } => 16 ,
+            Modulus::GF8 { .. } => 256,
+            Modulus::GFk { k, .. } => 2_u16.pow(*k as u32),
         }
     }
 }
@@ -109,6 +140,8 @@ impl HasModulus for Wire {
             Wire::Mod3 { .. } => Modulus::Zq { q: 3 },
             Wire::ModN { q, .. } => Modulus::Zq { q: *q },
             Wire::GF4 { p, .. } => Modulus::GF4 { p: *p },
+            Wire::GF8 { p, .. } =>  Modulus::GF8 { p: *p },
+            Wire::GFk { k, p, .. } => Modulus::GFk { k: *k, p: *p },
         }
     }
 }
@@ -125,6 +158,8 @@ impl Wire {
                 .collect(),
             Wire::ModN { ds, .. } => ds.clone(),
             Wire::GF4 { elts, .. } => elts.clone(),
+            Wire::GF8 { elts, .. } => elts.clone(),
+            Wire::GFk { elts, ..} => elts.clone(),
         }
     }
 
@@ -203,6 +238,8 @@ impl Wire {
         match *modulus {
             Modulus::Zq { q } => Wire::from_block_mod(inp, q),
             Modulus::GF4 { p } => Wire::from_block_GF4(inp, p),
+            Modulus::GF8 { p } => //TODO,
+            Modulus::GFk { k, p } => //TODO,
         }
     }
 
@@ -255,6 +292,8 @@ impl Wire {
             Wire::Mod3 { lsb, msb } => Block::from(((*msb as u128) << 64) | (*lsb as u128)),
             Wire::ModN { q, ref ds } => Block::from(util::from_base_q(ds, *q)),
             Wire::GF4 { p, elts } => Block::from(util::from_poly_p4(elts, *p)),
+            Wire::GF8 { p, elts } => //TODO,
+            Wire::GFk { k, p, elts } => //TODO
         }
     }
 
@@ -278,6 +317,15 @@ impl Wire {
                 p,
                 elts: vec![0; 32],
             },
+            Modulus::GF8 { p } => Wire::GF8 {
+                p, 
+                elts: vec![0; 16],
+            }, 
+            Modulus::GFk { k, p } => Wire::GFk {
+                k, 
+                p, 
+                elts: vec![0; (128/k).into()],
+            },
         }
     }
 
@@ -298,6 +346,8 @@ impl Wire {
             }
             Wire::ModN { ref mut ds, .. } => ds[0] = 1,
             Wire::GF4 { ref mut elts, .. } => elts[0] = 1,
+            Wire::GF8 { ref mut elts, .. } => elts[0] = 1,
+            Wire::GFk { ref mut elts, .. } => elts[0] = 1,
         }
         w
     }
@@ -316,9 +366,19 @@ impl Wire {
                 debug_assert!(color < *q);
                 color
             }
-            Wire::GF4 { p, ref elts } => {
+            Wire::GF4 { ref elts, .. } => {
                 let color = elts[0];
-                debug_assert!(color < *p as u16);
+                debug_assert!(color < 16);
+                color
+            }
+            Wire::GF8 { ref elts, .. } => {
+                let color = elts[0];
+                debug_assert!(color < 256);
+                color
+            }
+            Wire::GFk { k, ref elts, .. } => {
+                let color = elts[0];
+                debug_assert!(color < 2_u16.pow(*k as u32));
                 color
             }
         }
@@ -382,11 +442,46 @@ impl Wire {
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
                 xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
-                    // println!("x + y= {:?} + {:?}", util::u8_to_bits(*x as u8, 8) , util::u8_to_bits(y as u8, 8));
                     *x ^= y;
-                    // println!("sum = {:?}", util::u8_to_bits(*x as u8, 8));
                 });
             } 
+            (
+                Wire::GF8 { 
+                    p: ref xpoly, 
+                    elts: ref mut xs,
+                },
+                Wire::GF8 { 
+                    p: ref ypoly, 
+                    elts: ref ys, 
+                },
+            ) => {
+                // Because we work in F(2^k), this is just a bitwise addition in F2. 
+                debug_assert_eq!(xpoly, ypoly);
+                debug_assert_eq!(xs.len(), ys.len());                
+                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
+                    *x ^= y;
+                });
+            }
+            (
+                Wire::GFk {
+                    k: ref xk, 
+                    p: ref xpoly, 
+                    elts: ref mut xs,
+                },
+                Wire::GFk { 
+                    k: ref yk,
+                    p: ref ypoly, 
+                    elts: ref ys, 
+                },
+            ) => {
+                // Because we work in F(2^k), this is just a bitwise addition in F2. 
+                debug_assert_eq!(xk,yk);
+                debug_assert_eq!(xpoly, ypoly);
+                debug_assert_eq!(xs.len(), ys.len());                
+                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
+                    *x ^= y;
+                });
+            }
             _ => panic!("[Wire::plus_eq] unequal moduli!"),
         }
 
@@ -433,7 +528,17 @@ impl Wire {
             },
             Wire::GF4 { p, elts } => {
                 elts.iter_mut().for_each(|d| {
-                    *d = util::field_mul(*d as u8, c as u8, *p, 4) as u16;
+                    *d = util::field_mul(*d, c, (*p).into(), 4) as u16;
+                });
+            }
+            Wire::GF8 { p, elts } => {
+                elts.iter_mut().for_each(|d| {
+                    *d = util::field_mul(*d, c, *p, 8) as u16;
+                });
+            }
+            Wire::GFk {k, p, elts} => {
+                elts.iter_mut().for_each(|d| {
+                    *d = util::field_mul(*d, c, *p, *k) as u16;
                 });
             }
         }
@@ -471,6 +576,12 @@ impl Wire {
                 });
             }
             Wire::GF4 { .. } => {
+                // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
+            }
+            Wire::GF8 { .. } => {
+                // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
+            }
+            Wire::GFk { .. } => {
                 // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
             }
         }
@@ -529,6 +640,18 @@ impl Wire {
                     .collect();
                 Wire::GF4 { p, elts }
             },
+            Modulus::GF8 { p } => {
+                let elts = (0..32)
+                    .map(|_| (rng.gen::<u16>()&(255)) as u16)
+                    .collect();
+                Wire::GF8 { p, elts }
+            },
+            Modulus::GFk {k, p} => {
+                let elts = (0..32)
+                    .map(|_| (rng.gen::<u16>()&((1<<k) - 1)) as u16)
+                    .collect();
+                Wire::GFk { k, p, elts }
+            },
         }
     }
 
@@ -548,6 +671,12 @@ impl Wire {
         match *self {
             Wire::GF4 { .. } => {
                 Self::from_block(block, &Modulus::GF4 { p: modulus as u8 })
+            },
+            Wire::GF8 { .. } => {
+                Self::from_block(block, &Modulus::GF8 { p: modulus })
+            },
+            Wire::GFk { k, .. } => {
+                Self::from_block(block, &Modulus::GFk { k, p: modulus })
             }
             _ => {
                 if modulus == 3 {
@@ -653,7 +782,7 @@ mod tests {
                 Wire::Mod2 { val } => assert!(u128::from(val) > 0),
                 Wire::Mod3 { lsb, msb } => assert!(lsb > 0 && msb > 0),
                 Wire::ModN { ds, .. } => assert!(!ds.iter().all(|&y| y == 0)),
-                Wire::GF4 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
+                _ => (),
             }
         }
     }
@@ -667,10 +796,8 @@ mod tests {
             let y = x.hashback(Block::from(1u128), p as u16);
             assert!(x != y);
             match y {
-                Wire::Mod2 { val } => assert!(u128::from(val) > 0),
-                Wire::Mod3 { lsb, msb } => assert!(lsb > 0 && msb > 0),
-                Wire::ModN { ds, .. } => assert!(!ds.iter().all(|&y| y == 0)),
                 Wire::GF4 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
+                _ => (),
             }
         }
     }

@@ -170,7 +170,7 @@ pub fn from_poly_p4(elts: &Vec<u16>, p: u8) -> [u8; 16] {
     .unwrap()
 }
 
-pub fn field_mul(a: u8, b: u8, p: u8, k: u8) -> u8 {
+pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
     let mut x = a; let mut ret = 0;
 	
 	for i in 0..k {
@@ -181,7 +181,7 @@ pub fn field_mul(a: u8, b: u8, p: u8, k: u8) -> u8 {
 			x ^= p;
 		} else {x <<= 1}
 	}
-	return ret;
+	return ret as u8;
 }
 /// shift-and-Add MSB algorithm for multiplication
 pub fn mul_GF4(a: u8 ,b: u8, p: u8) -> u8 {
