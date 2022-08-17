@@ -10,7 +10,7 @@ use crate::{
     Modulus,
 };
 use itertools::Itertools;
-use std::ops::Index;
+use std::{ops::Index, convert::TryInto};
 
 /// A collection of wires for the PHOTON permutation, useful for the garbled gadgets defined by `PhotonGadgets`.
 // [[W; D]; D] is organized in column-major order
@@ -24,21 +24,25 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
     }
 
     /// Create a new PhotonState matrix from a row-major ordered element array.
-    // pub fn new(w_vec: Vec<W>) -> PhotonState<W, D> {
-    //     assert_eq!(w_vec.len(), D*D);
-    //     let mut ws: [[W; D]; D];
+    pub fn from_vec(w_vec: Vec<W>) -> PhotonState<W, D> {
+        assert_eq!(w_vec.len(), D*D);
+        let mut ws: [[W; D]; D];
 
-    //     for c in 0..D {
-    //         ws[c] = w_vec[]
-    //     }
+        for c in 0..D {
+            for r in 0..D {
+                ws[c][r] = w_vec[c*D + r];
+            }
+        }
 
-    //     PhotonState(ws)
-    // }
+        PhotonState(ws)
+    }
 
-    /// Return the moduli of all the wires in the bundle.
+    /// Return the moduli of all the wires in the state matrix.
     pub fn modulus(&self) -> Modulus {
         let mod0 = self.0[0][0].modulus();
-        assert!(self.0.iter().all(|c| c.iter().all(|el| el.modulus() == mod0)));
+        if self.0.iter().all(|c| c.iter().all(|el| el.modulus() == mod0)) {
+            panic!("Not all elements in the state matrix have the same modulus!");
+        }
 
         mod0
     }
@@ -59,8 +63,8 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
     }
 
     /// Insert a wire from the Bundle
-    pub fn insert(&mut self, (row_index, col_index): (usize, usize), val: W) {
-        self.0[col_index][row_index] = val;
+    pub fn insert(&mut self, col_index: usize, col: [W; D]) {
+        self.0[col_index] = col;
     }
 
     /// Access the underlying iterator over the columns
@@ -69,15 +73,45 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
     }
 }
 
-impl<F: Fancy> PhotonGadgets for F {}
+impl<F: Fancy, const D: usize> PhotonGadgets<D> for F {}
 
 /// Extension trait for Fancy which provides Photon constructions
-pub trait PhotonGadgets: Fancy {
-    fn constant_state(
+pub trait PhotonGadgets<const D: usize>: Fancy {
+    fn AddConstants (
         &mut self,
-        xs: &[u16],
-        p: &Modulus,
-    ) -> Result<PhotonState<Self::Item, >, Self::Error> {
+        state: &mut PhotonState<Self::Item, D>,
+        rc: u16,
+        ics: &[u16; D] //hardcode!
+    ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
+        let w_ics = ics
+        .iter()
+        .map(|ic| self.constant(*ic, &state.modulus()).unwrap())
+        .collect_vec();
+        let w_rc = self.constant(rc, &state.modulus()).unwrap();
 
+        // HOW WITH ITERATOR? DEBUG TRAIT (try_into())?
+        // let first_col: [Self::Item; D] = state.state_matrix()[0]
+        // .iter()
+        // .zip(w_ics.iter())
+        // .map(|(cell, iconst)| {
+        //     let ic_add = self.add(cell, iconst).unwrap();
+        //     self.add(&ic_add, &w_rc).unwrap()
+        // })
+        // .collect_vec().into();
+
+        // let mut res_state = state.state_matrix();
+        let ic_add;
+        for i in 0..D {
+            ic_add = self.add(&state.state_matrix()[0][i], &w_ics[i]).unwrap();
+            state.state_matrix()[0][i] = self.add(&ic_add, &w_rc).unwrap();
+        };
+        Ok(*state)
+    }
+
+    fn SubCells (
+        &mut self,
+        sbox: Vec<u16>
+    ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
+        
     }
 }
