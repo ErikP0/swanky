@@ -160,7 +160,7 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
 /// Convert a vector of elements in GF(2^4) to a vector of u8s.
 pub fn from_poly_p_array(elts: &Vec<u16>, p: u16, k: u8) -> [u8; 16] {
     debug_assert!(p < 2_u16.pow((k+1) as u32), "field polynomial has a degree that is too high");
-    assert!(k == 4 || k == 8);
+    debug_assert!(k == 4 || k == 8);
 
     if k == 4 {
         elts.chunks(2)
