@@ -18,6 +18,7 @@ mod crt;
 mod input;
 mod pmr;
 mod reveal;
+mod photon;
 pub use binary::{BinaryBundle, BinaryGadgets};
 pub use bundle::{Bundle, BundleGadgets};
 pub use crt::{CrtBundle, CrtGadgets};
