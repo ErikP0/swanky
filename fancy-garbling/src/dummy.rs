@@ -125,8 +125,14 @@ impl Fancy for Dummy {
         let result = match x.modulus() {
             Modulus::Zq {q} => (x.val * c) % q,
             Modulus::GF4 { p } => {
-                util::mul_GF4(x.val as u8, c as u8,  p ) as u16
+                util::field_mul(x.val, c, p as u16, 4) as u16
             },
+            Modulus::GF8 { p } => {
+                util::field_mul(x.val, c, p, 8) as u16
+            },
+            Modulus::GFk { k, p } => {
+                util::field_mul(x.val, c, p, k) as u16
+            }
         };
 
         
@@ -140,7 +146,13 @@ impl Fancy for Dummy {
         let result = match x.modulus() {
             Modulus::Zq { q } => (x.val * y.val) % q,
             Modulus::GF4 { p } => {
-                util::field_mul(x.val as u8, y.val as u8 , p, 4) as u16
+                util::field_mul(x.val, y.val  , p as u16, 4) as u16
+            },
+            Modulus::GF8 { p } => {
+                util::field_mul(x.val, y.val, p, 8) as u16
+            },
+            Modulus::GFk { k, p } => {
+                util::field_mul(x.val, y.val, p, k) as u16
             },
         };
 
@@ -169,7 +181,17 @@ impl Fancy for Dummy {
                 if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 16) {
                     return Err(Self::Error::from(FancyError::InvalidTruthTable));
                 }
-            }
+            },
+            Modulus::GF8 { .. } => {
+                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 256) {
+                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
+                }
+            },
+            Modulus::GFk { k, .. } => {
+                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 2_u16.pow(k.into())) {
+                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
+                }
+            },
         }
        
         let val = tt[x.val as usize];

@@ -137,9 +137,6 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                 let res = L.plus_mov(&R.plus_mov(&A.cmul(new_b_color)));
                 Ok(res)
             }
-            // (Modulus::GF4 { p }, Modulus::GF4 { p: pb }) => {
-            //     // TODO
-            // }
             _ => {
                 Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))))
             }
@@ -153,8 +150,14 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         if let Modulus::Zq { q: qq } = x.modulus() {
             q = qq;
         }
-        else if let Modulus::GF4 { p: _ } = x.modulus() {
+        else if let Modulus::GF4 { .. } = x.modulus() {
             q = 16 as u16;
+        }
+        else if let Modulus::GF8 { .. } = x.modulus() {
+            q = 256 as u16;
+        }
+        else if let Modulus::GFk { k, .. } = x.modulus() {
+            q = 2_u16.pow(k.into()) as u16;
         }
         else {
             return Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
@@ -194,6 +197,28 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             },
             Modulus::GF4 { .. } => {     // not sure about this
                 let ct = self.channel.read_blocks(16 as usize)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..16 {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
+            },
+            Modulus::GF8 { .. } => {     // not sure about this
+                let ct = self.channel.read_blocks(256 as usize)?;
+                // Attempt to brute force x using the output ciphertext
+                for k in 0..16 {
+                    let hashed_wire = x.hash(output_tweak(i, k));
+                    if hashed_wire == ct[k as usize] {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
+            }
+            Modulus::GFk { k, .. } => {     // not sure about this
+                let ct = self.channel.read_blocks(2_u16.pow(k.into()) as usize)?;
                 // Attempt to brute force x using the output ciphertext
                 for k in 0..16 {
                     let hashed_wire = x.hash(output_tweak(i, k));

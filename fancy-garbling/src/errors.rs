@@ -41,6 +41,8 @@ pub enum FancyError {
     InvalidTruthTable,
     /// Uninitialized value encountered.
     UninitializedValue,
+    /// Unequal value for k in GF(2^k)
+    UnequalK,
 }
 
 /// Errors from the dummy fancy object.
@@ -120,6 +122,9 @@ impl Display for FancyError {
             FancyError::InvalidTruthTable => "invalid truth table".fmt(f),
             FancyError::UninitializedValue => {
                 "uninitialized value in circuit. is the circuit topologically sorted?".fmt(f)
+            },
+            FancyError::UnequalK => {
+                "unequal k values for GF(2^k)".fmt(f)
             }
         }
     }

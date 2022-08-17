@@ -385,11 +385,15 @@ impl Fancy for CircuitBuilder {
     ) -> Result<CircuitRef, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
         if tt.len() < match xref.modulus() {
-                        Modulus::Zq { q } => q as usize,
-                        Modulus::GF4 { .. } => 16,
+                        Modulus::Zq { .. } => xref.modulus().size().into(),
+                        Modulus::GF4 { .. } => xref.modulus().size().into(),
+                        Modulus::GF8 { .. } => xref.modulus().size().into(),
+                        Modulus::GFk { .. } => xref.modulus().size().into(),
         } || !tt.iter().all(|&x| x < match output_modulus {
-                                        Modulus::Zq { q } => *q,
-                                        Modulus::GF4 { .. } => 16,
+                                        Modulus::Zq { .. } => output_modulus.size().into(),
+                                        Modulus::GF4 { .. } => output_modulus.size().into(),
+                                        Modulus::GF8 { .. } => output_modulus.size().into(),
+                                        Modulus::GFk { .. } => output_modulus.size().into(),
         }) {
             return Err(Self::Error::from(FancyError::InvalidTruthTable));
         }
@@ -639,7 +643,9 @@ mod plaintext {
             let inps = (0..c.num_garbler_inputs())
                 .map(|i| rng.gen_u16() % match c.garbler_input_mod(i) {
                                                     Modulus::Zq { q } => q,
-                                                    Modulus::GF4 { .. } => 16
+                                                    Modulus::GF4 { .. } => 16,
+                                                    Modulus::GF8 { .. } => 256,
+                                                    Modulus::GFk {k, .. } => 2_u16.pow(k.into()),
                                                     }
                 )
                 .collect_vec();

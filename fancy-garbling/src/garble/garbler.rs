@@ -363,6 +363,93 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             // output zero-wire
             // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
             C = A
+                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao 
+                .hashback(g, p_out as u16)
+                .plus_mov(&Dout.cmul(tt[(tao) as usize])); 
+
+            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+            let mut C_ = C.clone();
+            let C_precomputed = {
+                (0..16)
+                    .map(|x| {
+                        C_ = C.clone();
+                        if x > 0 {
+                            C_.plus_eq(&Dout.cmul(x));
+                        }
+                        C_.as_block()
+                    })
+                    .collect::<Vec<Block>>()
+            };
+
+            let mut A_ = A.clone();
+            for x in 0..16 {
+                if x > 0 {
+                    A_ = A.clone();
+                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                }
+
+                let ix = (tao ^ x) as usize;
+                if ix == 0 {
+                    continue;
+                }
+
+                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                gate[ix - 1] = ct;
+            }
+        }
+        else if let (Modulus::GF8 { p: p_in}, Modulus::GF8 { p: p_out }) = (mod_in, *mod_out) {
+            // (q_in, q_out) = (p_in as u16, p_out as u16);
+            Din = self.delta(&Modulus::GF8 { p: p_in});
+            Dout = self.delta(&Modulus::GF8 { p: p_out });
+
+            // output zero-wire
+            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+            C = A
+                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao 
+                .hashback(g, p_out as u16)
+                .plus_mov(&Dout.cmul(tt[(tao) as usize])); 
+
+            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+            let mut C_ = C.clone();
+            let C_precomputed = {
+                (0..16)
+                    .map(|x| {
+                        C_ = C.clone();
+                        if x > 0 {
+                            C_.plus_eq(&Dout.cmul(x));
+                        }
+                        C_.as_block()
+                    })
+                    .collect::<Vec<Block>>()
+            };
+
+            let mut A_ = A.clone();
+            for x in 0..16 {
+                if x > 0 {
+                    A_ = A.clone();
+                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                }
+
+                let ix = (tao ^ x) as usize;
+                if ix == 0 {
+                    continue;
+                }
+
+                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                gate[ix - 1] = ct;
+            }
+        }
+        else if let (Modulus::GFk {k: k_in, p: p_in}, Modulus::GFk { k: k_out ,p: p_out }) = (mod_in, *mod_out) {
+            if k_in != k_out {
+                return Err(GarblerError::FancyError(FancyError::UnequalK));
+            }
+            // (q_in, q_out) = (p_in as u16, p_out as u16);
+            Din = self.delta(&Modulus::GFk { k: k_in, p: p_in});
+            Dout = self.delta(&Modulus::GFk {  k: k_out, p: p_out });
+
+            // output zero-wire
+            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+            C = A
                 .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao ?
                 .hashback(g, p_out as u16)
                 .plus_mov(&Dout.cmul(tt[(tao) as usize])); // again negating does nothing ? + reduce wrt p_out
@@ -412,7 +499,9 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let modulus = X.modulus();
         let q = match X.modulus() {
             Modulus::Zq { q } => q,
-            Modulus::GF4 { .. } => 16
+            Modulus::GF4 { .. } => 16,
+            Modulus::GF8 { .. } => 256,
+            Modulus::GFk {k, .. } => 2_u16.pow(k.into()),
         };
         let i = self.current_output();
         let D = self.delta(&modulus);
