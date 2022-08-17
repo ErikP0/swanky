@@ -158,16 +158,38 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
 }
 
 /// Convert a vector of elements in GF(2^4) to a vector of u8s.
-pub fn from_poly_p4(elts: &Vec<u16>, p: u8) -> [u8; 16] {
-    debug_assert!(p < 32, "field polynomial has a degree that is too high");
-    elts.chunks(2)
-    .map(|c| {
-        let c1 = c[1] << 4;
-        (c1 + c[0]) as u8
-    })
-    .collect::<Vec<u8>>()
-    .try_into()
-    .unwrap()
+pub fn from_poly_p_array(elts: &Vec<u16>, p: u16, k: u8) -> [u8; 16] {
+    debug_assert!(p < 2_u16.pow((k+1) as u32), "field polynomial has a degree that is too high");
+    assert!(k == 4 || k == 8);
+
+    if k == 4 {
+        elts.chunks(2)
+        .map(|c| {
+            let c1 = c[1] << 4;
+            (c1 + c[0]) as u8
+        })
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap()
+    } else {
+        elts.iter()
+        .map(|el| *el as u8)
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap()
+    }
+}
+
+/// Convert a vector of elements in GF(2^k) to a u128.
+pub fn from_poly_p_u128(elts: &Vec<u16>, p: u16, k: u8) -> u128 {
+    debug_assert!(p < 2_u16.pow((k+1).into()), "field polynomial has a degree that is too high");
+    
+    let mut x = 0u128;
+    for i in (0..elts.len()).rev() {
+        x <<= k;
+        x += elts[i] as u128;
+    }
+    x
 }
 
 pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
@@ -643,11 +665,11 @@ mod tests {
     fn GF4_to_u8_array() {
         let mut rng = thread_rng();
         let mut elts: Vec<u16> = Vec::with_capacity(32);
-        let p: u8 = 6;
+        let p = 6;
         for _ in 0..32 {
             elts.push(rng.gen_u16() % 16);
         }
-        let array = from_poly_p4(&elts, p);
+        let array = from_poly_p_array(&elts, p, 4);
         assert_eq!(array.len(), 16);
         assert!(array.iter().all(|el| *el == *el as u8));
     }

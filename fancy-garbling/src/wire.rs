@@ -237,9 +237,9 @@ impl Wire {
     pub fn from_block(inp: Block, modulus: &Modulus) -> Self {
         match *modulus {
             Modulus::Zq { q } => Wire::from_block_mod(inp, q),
-            Modulus::GF4 { p } => Wire::from_block_GF4(inp, p),
-            Modulus::GF8 { p } => //TODO,
-            Modulus::GFk { k, p } => //TODO,
+            Modulus::GF4 { p } => Wire::from_block_GFk(inp, p.into(), 4),
+            Modulus::GF8 { p } => Wire::from_block_GFk(inp, p, 8),
+            Modulus::GFk { k, p } => Wire::from_block_GFk(inp, p, k),
         }
     }
 
@@ -274,16 +274,23 @@ impl Wire {
         }
     }
 
-    fn from_block_GF4(inp: Block, p: u8) -> Self {
+    fn from_block_GFk(inp: Block, p: u16, k: u8) -> Self {
         let inp = u128::from(inp);
         let mut _inp = inp;
-        let mut elts: Vec<u16> = Vec::with_capacity(32);
-        for _ in 0..32 {
-            elts.push((_inp & 0b1111) as u16);
-            _inp >>= 4;
+        let mut elts: Vec<u16> = Vec::new();
+        let length = 128 / k;
+        for _ in 0..length {
+            elts.push((_inp & (2_u16.pow(k as u32) - 1) as u128) as u16);
+            _inp >>= k;
         }
-        Wire::GF4 { p, elts }
-    }
+
+        match k {
+            4 => Wire::GF4 { p: p as u8, elts },
+            8 => Wire::GF8 { p, elts },
+            _ => Wire::GFk { k, p, elts },
+            }
+        }
+        
 
     /// Pack the wire into a `Block`.
     pub fn as_block(&self) -> Block {
@@ -291,9 +298,9 @@ impl Wire {
             Wire::Mod2 { val } => *val,
             Wire::Mod3 { lsb, msb } => Block::from(((*msb as u128) << 64) | (*lsb as u128)),
             Wire::ModN { q, ref ds } => Block::from(util::from_base_q(ds, *q)),
-            Wire::GF4 { p, elts } => Block::from(util::from_poly_p4(elts, *p)),
-            Wire::GF8 { p, elts } => //TODO,
-            Wire::GFk { k, p, elts } => //TODO
+            Wire::GF4 { p, elts } => Block::from(util::from_poly_p_array(elts, *p as u16, 4)),
+            Wire::GF8 { p, elts } => Block::from(util::from_poly_p_array(elts, *p as u16, 8)),
+            Wire::GFk { k, p, elts } => Block::from(util::from_poly_p_u128(elts, *p as u16, *k)),
         }
     }
 
