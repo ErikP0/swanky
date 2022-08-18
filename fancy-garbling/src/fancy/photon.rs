@@ -38,7 +38,7 @@ impl<W> PhotonState<W>
 
         for r in 0..d {
             for c in 0..d {
-                ws[r][c] = w_vec[r*d + c].clone();
+                ws[r][c] = w_vec[c*d+r].clone();
             }
         }
 
@@ -90,6 +90,26 @@ impl<F: Fancy> PhotonGadgets for F {}
 
 /// Extension trait for Fancy which provides Photon constructions
 pub trait PhotonGadgets: Fancy {
+    
+    /// Output the wires that make up a PhotonState.
+    fn output_bundle(&mut self, x: &PhotonState<Self::Item>) -> Result<Option<Vec<u16>>, Self::Error> {
+        let d = x.dim();
+        let state = x.state_matrix();
+
+        let mut outputs = Vec::with_capacity(d*d);
+
+        for c in 0..d {
+            for r in 0..d {
+                outputs.push(self.output(&state[r][c])?);
+            }
+        }
+
+    
+        Ok(outputs.into_iter().collect())
+    }
+
+
+
     fn PermutePHOTON (
         &mut self,
         state: &PhotonState<Self::Item>,
@@ -203,4 +223,11 @@ pub trait PhotonGadgets: Fancy {
 
         Ok(state)
     }
+}
+
+
+
+#[cfg(test)]
+mod photon_test {
+    
 }
