@@ -17,7 +17,11 @@ use std::{ops::Index, convert::TryInto};
 #[derive(Clone)]
 pub struct PhotonState<W, const D: usize>([[W; D]; D]);
 
-impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
+impl<W, const D: usize> PhotonState<W, D> 
+    where
+        W: Clone + HasModulus + Default,
+        [[W; D]; D]: Default
+    {
     /// Create a new PhotonState 'matrix' from some wires.
     pub fn new(ws: [[W; D]; D]) -> PhotonState<W, D> {
         PhotonState(ws)
@@ -78,13 +82,17 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
     }
 }
 
-impl<F: Fancy, const D: usize> PhotonGadgets<D> for F {}
+impl<F: Fancy, const D: usize> PhotonGadgets<D> for F 
+    where [[Self::Item; D]; D]: Default 
+    {}
 
 /// Extension trait for Fancy which provides Photon constructions
-pub trait PhotonGadgets<const D: usize>: Fancy {
+pub trait PhotonGadgets<const D: usize>: Fancy 
+    where [[Self::Item; D]; D]: Default
+    {
     fn AddConstants (
         &mut self,
-        state: &mut PhotonState<Self::Item, D>,
+        state: &PhotonState<Self::Item, D>,
         rc: u16,
         ics: &[u16; D] //hardcode!
     ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
@@ -104,29 +112,30 @@ pub trait PhotonGadgets<const D: usize>: Fancy {
         // })
         // .collect_vec().into();
 
-        // let mut res_state = state.state_matrix().clone();
+        let mut res_state = state.state_matrix().clone();
         let mut ic_add;
         for i in 0..D {
-            ic_add = self.add(&state.state_matrix()[0][i], &w_ics[i]).unwrap();
-            state.state_matrix()[0][i] = self.add(&ic_add, &w_rc).unwrap();
+            ic_add = self.add(&res_state[0][i], &w_ics[i]).unwrap();
+            res_state[0][i] = self.add(&ic_add, &w_rc).unwrap();
         };
-        Ok(*state)
+        Ok(PhotonState(res_state))
     }
 
     fn SubCells (
         &mut self,
-        state: &mut PhotonState<Self::Item, D>,
+        state: &PhotonState<Self::Item, D>,
         sbox: Vec<u16>,
     ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
         debug_assert_eq!(state.size(), sbox.len(), "Sbox has incorrect dimensions");
 
-        for col in state.state_matrix().iter_mut() {
+        let mut res_state = state.state_matrix().clone();
+        for col in res_state.iter_mut() {
             for el in col.iter_mut() {
                 *el = self.proj(el, &state.modulus(), Some(sbox.clone())).unwrap();
             }
         }
 
-        Ok(*state)
+        Ok(PhotonState(res_state))
 
     }
 
@@ -136,10 +145,10 @@ pub trait PhotonGadgets<const D: usize>: Fancy {
     fn ShiftRows(
         &mut self, 
         state: &mut PhotonState<Self::Item, D>) { 
-            let tmp: [Self::Item; D];
+            let tmp: [[Self::Item; D]; 1];
             for i in 1..D {
                 for j in 0..D {
-                    tmp[j] = state.state_matrix()[j][i];
+                    tmp[0][j] = state.state_matrix()[j][i];
                 }
                 for j in 0..D { 
                     state.state_matrix()[j][i] = tmp[(j+i)%D];
