@@ -10,7 +10,7 @@
 use crate::{
     dummy::{Dummy, DummyVal},
     errors::{CircuitBuilderError, DummyError, FancyError},
-    fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
+    fancy::{BinaryBundle, CrtBundle, PhotonState, Fancy, FancyInput, HasModulus},
     wire::Modulus
 };
 use itertools::Itertools;
@@ -526,6 +526,16 @@ impl CircuitBuilder {
     /// Get a BinaryBundle for the evaluator with n bits.
     pub fn bin_evaluator_input(&mut self, nbits: usize) -> BinaryBundle<CircuitRef> {
         BinaryBundle::new(self.evaluator_inputs(&vec![Modulus::Zq { q:2 }; nbits]))
+    }
+
+    /// Get a PhotonState for the garbler with dimension d.
+    pub fn photon_garbler_input(&mut self, modulus: &Modulus, d: usize) -> PhotonState<CircuitRef> {
+        PhotonState::from_vec(self.garbler_inputs(&vec![*modulus; d]), d)
+    }
+
+    /// Get a PhotonState for the evaluator with dimension d.
+    pub fn photon_evaluator_input(&mut self, modulus: &Modulus, d: usize) -> PhotonState<CircuitRef> {
+        PhotonState::from_vec(self.evaluator_inputs(&vec![*modulus; d]), d)
     }
 }
 
