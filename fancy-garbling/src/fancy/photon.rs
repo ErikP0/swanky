@@ -92,12 +92,39 @@ impl<F: Fancy> PhotonGadgets for F {}
 
 /// Extension trait for Fancy which provides Photon constructions
 pub trait PhotonGadgets: Fancy {
+    fn PermutePHOTON (
+        &mut self,
+        state: &PhotonState<Self::Item>,
+        ics: &[u16],
+        sbox: &[u16],
+        Z: &[u16],
+    ) -> Result<PhotonState<Self::Item>, Self::Error> {
+        const rcs: [u16; 12] = [1, 3, 7, 14, 13, 11, 6, 12,  9, 2, 5, 10];
+
+        let d = state.dim();
+        debug_assert_eq!(ics.len(), d);
+        debug_assert_eq!(sbox.len(), state.size());
+        debug_assert_eq!(Z.len(), d);
+
+        let mut res_state = state.clone();
+        for round in 0..12 {
+            self.AddConstants(&mut res_state, rcs[round], ics)?;
+
+            self.SubCells(&mut res_state, sbox)?;
+
+            self.MixColumnsSerial(&mut res_state, Z)?;
+        }
+
+        Ok(res_state)
+    }
+
     fn AddConstants<'a> (
         &mut self,
         state: &'a mut PhotonState<Self::Item>,
         rc: u16,
         ics: &[u16] //hardcode!
     ) -> Result<&'a PhotonState<Self::Item>, Self::Error> {
+        debug_assert_eq!(ics.len(), state.dim());
         let w_ics = ics
         .iter()
         .map(|ic| self.constant(*ic, &state.modulus()).unwrap())
@@ -105,16 +132,11 @@ pub trait PhotonGadgets: Fancy {
         let w_rc = self.constant(rc, &state.modulus())?;
         let d = state.dim();
 
-        // let first_col = state.state_matrix()[0]
-        // .iter()
-        // .zip(w_ics.iter())
-        // .map(|(cell, iconst)| {
-        //     let ic_add = self.add(cell, iconst).unwrap();
-        //     self.add(&ic_add, &w_rc).unwrap()
-        // })
-        // .collect_vec();
-
-        state.insert(0, first_col);
+        let mut ic_add: Self::Item;
+        for i in 0..d {
+            ic_add = self.add(&state.state_matrix()[i][0], &w_ics[i])?;
+            state.state_matrix()[i][0] = self.add(&ic_add, &w_rc)?;
+        }
 
         Ok(state)
     }
