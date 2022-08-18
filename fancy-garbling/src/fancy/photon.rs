@@ -23,7 +23,7 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
         PhotonState(ws)
     }
 
-    /// Create a new PhotonState matrix from a row-major ordered element array.
+    /// Create a new PhotonState matrix from an ordered element array.
     pub fn from_vec(w_vec: Vec<W>) -> PhotonState<W, D> {
         assert_eq!(w_vec.len(), D*D);
         let mut ws: [[W; D]; D];
@@ -47,7 +47,7 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
         mod0
     }
 
-    /// Extract the wires from this bundle.
+    /// Get `state_matrix`, the underlying structure of PhotonState.
     pub fn state_matrix(&self) -> &[[W; D] ; D] {
         &self.0
     }
@@ -57,12 +57,12 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
         self.0.len()
     }
 
-    /// Extract a wire from the Bundle, returning it.
+    /// Extract a wire from the matrix, returning it.
     pub fn extract(&mut self, (row_index, col_index): (usize, usize)) -> W {
         self.0[col_index][row_index].clone()
     }
 
-    /// Insert a wire from the Bundle
+    /// Insert a column in the matrix at given `col_index`
     pub fn insert(&mut self, col_index: usize, col: [W; D]) {
         self.0[col_index] = col;
     }
@@ -113,5 +113,22 @@ pub trait PhotonGadgets<const D: usize>: Fancy {
         sbox: Vec<u16>
     ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
         
+    }
+
+
+
+
+    fn ShiftRows(
+        &mut self, 
+        state: &mut PhotonState<Self::Item, D>) { 
+            let tmp: [Self::Item; D];
+            for i in 1..D {
+                for j in 0..D {
+                    tmp[j] = state.state_matrix()[j][i];
+                }
+                for j in 0..D { 
+                    state.state_matrix()[j][i] = tmp[(j+i)%D];
+                }
+            }
     }
 }
