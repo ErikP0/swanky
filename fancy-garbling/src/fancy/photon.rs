@@ -5,13 +5,11 @@
 // See LICENSE for licensing information.
 
 use crate::{
-    errors::FancyError,
     fancy::{Fancy, HasModulus},
     Modulus,
 };
 use itertools::Itertools;
-use serde_json::de;
-use std::{ops::Index, convert::TryInto};
+
 
 /// A collection of wires for the PHOTON permutation, useful for the garbled gadgets defined by `PhotonGadgets`.
 // [[W; D]; D] is organized in row-major order
