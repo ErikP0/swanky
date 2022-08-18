@@ -30,7 +30,7 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
 
         for c in 0..D {
             for r in 0..D {
-                ws[c][r] = w_vec[c*D + r];
+                ws[c][r] = w_vec[c*D + r].clone();
             }
         }
 
@@ -47,6 +47,11 @@ impl<W: Clone + HasModulus, const D: usize> PhotonState<W, D> {
         mod0
     }
 
+    // Return the size of the filed of all the wires in the state matrix.
+    pub fn size(&self) -> usize {
+        self.modulus().size().into()
+
+    }
     /// Get `state_matrix`, the underlying structure of PhotonState.
     pub fn state_matrix(&self) -> &[[W; D] ; D] {
         &self.0
@@ -99,8 +104,8 @@ pub trait PhotonGadgets<const D: usize>: Fancy {
         // })
         // .collect_vec().into();
 
-        // let mut res_state = state.state_matrix();
-        let ic_add;
+        // let mut res_state = state.state_matrix().clone();
+        let mut ic_add;
         for i in 0..D {
             ic_add = self.add(&state.state_matrix()[0][i], &w_ics[i]).unwrap();
             state.state_matrix()[0][i] = self.add(&ic_add, &w_rc).unwrap();
@@ -110,9 +115,19 @@ pub trait PhotonGadgets<const D: usize>: Fancy {
 
     fn SubCells (
         &mut self,
-        sbox: Vec<u16>
+        state: &mut PhotonState<Self::Item, D>,
+        sbox: Vec<u16>,
     ) -> Result<PhotonState<Self::Item, D>, Self::Error> {
-        
+        debug_assert_eq!(state.size(), sbox.len(), "Sbox has incorrect dimensions");
+
+        for col in state.state_matrix().iter_mut() {
+            for el in col.iter_mut() {
+                *el = self.proj(el, &state.modulus(), Some(sbox.clone())).unwrap();
+            }
+        }
+
+        Ok(*state)
+
     }
 
 
