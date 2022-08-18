@@ -96,7 +96,7 @@ pub trait PhotonGadgets: Fancy {
         &mut self,
         state: &PhotonState<Self::Item>,
         ics: &[u16],
-        sbox: &[u16],
+        sbox: &Vec<u16>,
         Z: &[u16],
     ) -> Result<PhotonState<Self::Item>, Self::Error> {
         const rcs: [u16; 12] = [1, 3, 7, 14, 13, 11, 6, 12,  9, 2, 5, 10];
@@ -144,7 +144,7 @@ pub trait PhotonGadgets: Fancy {
     fn SubCells<'a> (
         &mut self,
         state: &'a mut PhotonState<Self::Item>,
-        sbox: Vec<u16>,
+        sbox: &Vec<u16>,
     ) -> Result<&'a PhotonState<Self::Item>, Self::Error> {
         debug_assert_eq!(state.size(), sbox.len(), "Sbox has incorrect dimensions");
 
