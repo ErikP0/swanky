@@ -927,30 +927,56 @@ mod tests {
 
     #[test]
     fn cmul_arithmeticGF4() {
-        let mut rng = thread_rng();
+        let mut rng = thread_rng(); 
+        // Irreducible polynomial X^4 + X + 1
+        const X4_X_1: u8 = 19;
+        
+        
 
-        // (x³ + 1) * (x³ + x) = x² + 1
-        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2), Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+1] });
+        // (x^3 + 1) * (x^3 + x) = x^2 + 1
+        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3) + 1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+1] });
 
-        //( w^3) * ( w^3 + w^2 + w+1)        
-        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![1] });
+        //( x^3) * ( x^3 + x^2 + x+1)        
+        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![1] });
 
-        // ( w^2 +1) * ( w^3 + w^2 + w+1)
-        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![2_u16.pow(2)+2] });
+        // ( x^2 +1) * ( x^3 + x^2 + x + 1)
+        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+2] });
 
-        // ( w^3 +1) * ( w^3 + w^2 + w+1)
-        let w = Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)+1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (19), elts: vec![2_u16.pow(3)+2_u16.pow(2)+2] });
+        // ( x^3 +1) * ( x^3 + x^2 + x+1)
+        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)+1]}; 
+        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)+2_u16.pow(2)+2] });
 
-        let w = Wire::GF4 { p: (19), elts: vec!(2_u16.pow(3))}; 
-        assert_eq!(w.cmul(2_u16.pow(3)), Wire::GF4 { p: (19), elts: vec![2_u16.pow(3) + 4] });
+        let w = Wire::GF4 { p: (X4_X_1), elts: vec!(2_u16.pow(3))}; 
+        assert_eq!(w.cmul(2_u16.pow(3)), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3) + 4] });
 
 
-        let w = Wire::rand(&mut rng, &Modulus::GF4 { p: 19 });
+        let w = Wire::rand(&mut rng, &Modulus::GF4 { p: X4_X_1 });
         assert_eq!(w.cmul(1),w);
+    }
+    #[test]
+    fn cmul_arithmeticGF8() {
+        // Irreducible polynomial X^8 + X^4 + X^3 + X + 1
+        const X8_X4_X3_X_1: u16 = 283;
+
+        // (x^7+x^3+1)*(x^6+x^5+x^2+x+1) = x^5 + x^4 + x^3 + 1
+        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7) + 2_u16.pow(3) +1] };
+        assert_eq!(w.cmul(2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1] });
+
+        // (x^6+x^4+x)*(x^7+x^6+x^5+x+1) = x^7 + x^4 + 1
+        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(6) + 2_u16.pow(4) + 2] };
+        assert_eq!(w.cmul(2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(4)+1] });
+
+        // (x^7 + x^3)*x^7 = x^7 + x^6 + x^5 + x^4 + x^2 + x
+        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7) + 2_u16.pow(3)] };
+        assert_eq!(w.cmul(2_u16.pow(7)),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(6)+ 2_u16.pow(5)+ 2_u16.pow(4)+2_u16.pow(2)+2]});
+
+        // x^7*x^7 = x^7 + x^4 + x^3 + x
+        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)] };
+        assert_eq!(w.cmul(2_u16.pow(7)),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(4)+ 2_u16.pow(3)+2]});
+
     }
 
     #[test]
