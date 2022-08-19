@@ -3,7 +3,7 @@ use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder},
     classic::garble,
     util::RngExt,
-    Fancy,
+    Fancy, Modulus,
 };
 use std::time::Duration;
 
@@ -29,7 +29,7 @@ where
         let c = make_circuit(q);
         let (en, ev) = garble(&c).unwrap();
         let inps = (0..c.num_garbler_inputs())
-            .map(|i| rng.gen_u16() % c.garbler_input_mod(i))
+            .map(|i| rng.gen_u16() % c.garbler_input_mod(i).size())
             .collect::<Vec<u16>>();
         let xs = en.encode_garbler_inputs(&inps);
         bench.iter(|| {
@@ -42,16 +42,16 @@ where
 fn proj(q: u16) -> Circuit {
     let tt = (0..q).map(|i| (i + 1) % q).collect::<Vec<u16>>();
     let mut b = CircuitBuilder::new();
-    let x = b.garbler_input(q);
+    let x = b.garbler_input(&Modulus::Zq { q });
     for _ in 0..1000 {
-        let _ = b.proj(&x, q, Some(tt.clone())).unwrap();
+        let _ = b.proj(&x, &Modulus::Zq { q }, Some(tt.clone())).unwrap();
     }
     b.finish()
 }
 
 fn mul(q: u16) -> Circuit {
     let mut b = CircuitBuilder::new();
-    let x = b.garbler_input(q);
+    let x = b.garbler_input(&Modulus::Zq { q });
     for _ in 0..1000 {
         let _ = b.mul(&x, &x).unwrap();
     }

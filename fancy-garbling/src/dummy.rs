@@ -9,7 +9,6 @@
 //! Useful for evaluating the circuits produced by `Fancy` without actually
 //! creating any circuits.
 
-use std::ptr::write;
 
 use crate::{
     errors::{DummyError, FancyError},
