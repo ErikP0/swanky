@@ -9,6 +9,8 @@
 //! Useful for evaluating the circuits produced by `Fancy` without actually
 //! creating any circuits.
 
+use std::ptr::write;
+
 use crate::{
     errors::{DummyError, FancyError},
     fancy::{Fancy, FancyInput, FancyReveal, HasModulus}, Modulus, util,
@@ -27,6 +29,12 @@ pub struct DummyVal {
 impl HasModulus for DummyVal {
     fn modulus(&self) -> Modulus {
         self.modulus
+    }
+}
+
+impl std::fmt::Display for DummyVal {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(fmt, "{}", self.val())
     }
 }
 

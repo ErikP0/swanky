@@ -223,4 +223,21 @@ pub trait FancyInput {
             .collect_vec();
         Ok(buns)
     }
+
+        /// Encode a PHOTON.
+        fn encode_photon(
+            &mut self,
+            values: &[u16],
+            d: usize,
+            modulus: &Modulus,
+        ) -> Result<PhotonState<Self::Item>, Self::Error> {
+            let moduli = &vec![*modulus; d*d];
+            self.encode_many(values, moduli).map(|mtrx| PhotonState::from_vec(mtrx,d))
+        }
+    
+        /// Receive a PHOTON.
+        fn receive_photon(&mut self, d: usize, modulus: &Modulus) -> Result<PhotonState<Self::Item>, Self::Error> {
+            let moduli = &vec![*modulus; d*d];
+            self.receive_many(moduli).map(|mtrx| PhotonState::from_vec(mtrx,d))
+        }
 }
