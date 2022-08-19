@@ -21,9 +21,6 @@
 #![cfg_attr(feature = "nightly", doc(include = "../README.md"))]
 #![cfg_attr(feature = "nightly", deny(missing_docs))]
 
-#[macro_use]
-extern crate static_assertions;
-
 pub mod circuit;
 pub mod classic;
 pub mod depth_informer;
