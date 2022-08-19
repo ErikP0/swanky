@@ -14,7 +14,6 @@ use crate::{Wire, Modulus};
 use core::arch::x86_64::*;
 use itertools::Itertools;
 use scuttlebutt::Block;
-use serde_json::map;
 use std::collections::HashMap;
 use ndarray::{arr1,Array2,ShapeBuilder};
 

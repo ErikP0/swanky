@@ -35,7 +35,7 @@ impl<W> PhotonState<W>
     pub fn from_vec(w_vec: Vec<W>, d: usize) -> PhotonState<W> {
         assert_eq!(w_vec.len(), d*d);
         let mut ws: Vec<Vec<W>> = Vec::with_capacity(d*d);
-        let mut row: Vec<W> = Vec::with_capacity(d);
+        let mut row: Vec<W>;
 
         for r in 0..d {
             row = Vec::with_capacity(d);
@@ -124,8 +124,6 @@ pub trait PhotonGadgets: Fancy {
         Ok(outputs.into_iter().collect())
     }
 
-
-
     fn PermutePHOTON (
         &mut self,
         state: &PhotonState<Self::Item>,
@@ -133,7 +131,7 @@ pub trait PhotonGadgets: Fancy {
         sbox: &Vec<u16>,
         Z: &[u16],
     ) -> Result<PhotonState<Self::Item>, Self::Error> {
-        const rcs: [u16; 12] = [1, 3, 7, 14, 13, 11, 6, 12,  9, 2, 5, 10];
+        const RCS: [u16; 12] = [1, 3, 7, 14, 13, 11, 6, 12,  9, 2, 5, 10];
 
         let d = state.dim();
         debug_assert_eq!(ics.len(), d);
@@ -143,7 +141,7 @@ pub trait PhotonGadgets: Fancy {
         let mut res_state = state.clone();
         // println!("initial: {}", res_state);
         for round in 0..12 {
-            self.AddConstants(&mut res_state, rcs[round], ics)?;
+            self.AddConstants(&mut res_state, RCS[round], ics)?;
             // println!("addc: {}", res_state);
 
             self.SubCells(&mut res_state, sbox)?;
@@ -247,13 +245,10 @@ pub trait PhotonGadgets: Fancy {
             state.state_matrix.rotate_left(1);
             last_row.clear();
         }
-    
 
         Ok(state)
     }
 }
-
-
 
 #[cfg(test)]
 mod photon_test {
