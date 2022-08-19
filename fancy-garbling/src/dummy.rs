@@ -34,7 +34,7 @@ impl HasModulus for DummyVal {
 
 impl std::fmt::Display for DummyVal {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(fmt, "{}", self.val())
+        write!(fmt, "{:#04x}", self.val())
     }
 }
 
