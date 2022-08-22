@@ -209,7 +209,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             Modulus::GF8 { .. } => {     // not sure about this
                 let ct = self.channel.read_blocks(256 as usize)?;
                 // Attempt to brute force x using the output ciphertext
-                for k in 0..16 {
+                for k in 0..256 {
                     let hashed_wire = x.hash(output_tweak(i, k));
                     if hashed_wire == ct[k as usize] {
                         decoded = Some(k);
@@ -220,7 +220,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
             Modulus::GFk { k, .. } => {     // not sure about this
                 let ct = self.channel.read_blocks(2_u16.pow(k.into()) as usize)?;
                 // Attempt to brute force x using the output ciphertext
-                for k in 0..16 {
+                for k in 0..2_u16.pow(k as u32) {
                     let hashed_wire = x.hash(output_tweak(i, k));
                     if hashed_wire == ct[k as usize] {
                         decoded = Some(k);
