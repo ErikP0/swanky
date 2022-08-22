@@ -648,13 +648,13 @@ impl Wire {
                 Wire::GF4 { p, elts }
             },
             Modulus::GF8 { p } => {
-                let elts = (0..32)
+                let elts = (0..16)
                     .map(|_| (rng.gen::<u16>()&(255)) as u16)
                     .collect();
                 Wire::GF8 { p, elts }
             },
             Modulus::GFk {k, p} => {
-                let elts = (0..32)
+                let elts = (0..(128 / k))
                     .map(|_| (rng.gen::<u16>()&((1<<k) - 1)) as u16)
                     .collect();
                 Wire::GFk { k, p, elts }
