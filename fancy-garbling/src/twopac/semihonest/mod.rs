@@ -22,7 +22,7 @@ mod tests {
         CrtBundle,
         CrtGadgets,
         Fancy,
-        FancyInput, Modulus,
+        FancyInput, Modulus, PhotonState, PhotonGadgets,
     };
     use itertools::Itertools;
     use ocelot::ot::{ChouOrlandiReceiver, ChouOrlandiSender};
@@ -86,6 +86,54 @@ mod tests {
                 assert_eq!( a ^ b, output);
             }
         }
+    }
+
+    fn photon_op<F: Fancy>(b: &mut F, xs: &[PhotonState<F::Item>], 
+                           ics: &[u16], sbox: &'static[u16], Z: &[u16]) -> Option<Vec<Vec<u16>>> {
+        let mut outputs = Vec::new();
+        for x in xs.iter() {
+            let z = b.PermutePHOTON(x, ics, sbox, Z).unwrap();
+            outputs.push(b.output_photon(&z).unwrap());
+        }
+        outputs.into_iter().collect()
+    }
+
+    #[test]
+    fn test_photon() {
+        let mut rng = rand::thread_rng();
+        let p = Modulus::GF4 { p: 19 };
+        let d = 5;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
+
+        const sbox: &[u16] =  &[0xc, 0x5, 0x6, 0xb, 0x9, 0x0, 0xa, 0xd, 0x3, 0xe, 0xf, 0x8, 0x4, 0x7, 0x1, 0x2];
+        let ics = [0, 1, 3, 6, 4];
+        let Z = [1, 2, 9, 9, 2];
+
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_photon(&input, d, &p).unwrap();
+        let target = photon_op(&mut dummy, &[dummy_input], &ics, &sbox, &Z).unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_photon(&input, d, &p).unwrap();
+            photon_op(&mut gb, &[xs], &ics, &sbox, &Z);
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_photon(d, &p).unwrap();
+        let result = photon_op(&mut ev, &[xs], &ics, &sbox, &Z).unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
     }
 
     fn relu<F: Fancy>(b: &mut F, xs: &[CrtBundle<F::Item>]) -> Option<Vec<u128>> {
