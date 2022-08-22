@@ -94,7 +94,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
     }
 }
 
-fn combine(wires: &[Block], q: &Modulus) -> Wire {          // in_GF as bool because &self is not needed here
+fn combine(wires: &[Block], q: &Modulus) -> Wire {
     wires.iter().enumerate().fold(Wire::zero(q), |acc, (i, w)| {
         let w = Wire::from_block(*w, q);
         acc.plus(&w.cmul(1 << i))

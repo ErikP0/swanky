@@ -412,7 +412,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
             let mut C_ = C.clone();
             let C_precomputed = {
-                (0..16)
+                (0..256)
                     .map(|x| {
                         C_ = C.clone();
                         if x > 0 {
@@ -424,7 +424,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             };
 
             let mut A_ = A.clone();
-            for x in 0..16 {
+            for x in 0..256 {
                 if x > 0 {
                     A_ = A.clone();
                     A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
@@ -457,7 +457,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
             let mut C_ = C.clone();
             let C_precomputed = {
-                (0..16)
+                (0..(128 / k_in) as u16)
                     .map(|x| {
                         C_ = C.clone();
                         if x > 0 {
@@ -469,7 +469,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             };
 
             let mut A_ = A.clone();
-            for x in 0..16 {
+            for x in 0..(128 / k_out) as u16 {
                 if x > 0 {
                     A_ = A.clone();
                     A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
