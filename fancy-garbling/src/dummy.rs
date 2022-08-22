@@ -871,3 +871,189 @@ mod GF4_dummy {
         }
         //}}}
 }
+
+#[cfg(test)]
+mod GF8_dummy {
+    use super::*;
+    use itertools::Itertools;
+    use rand::{thread_rng, seq::SliceRandom, Rng};
+
+    const NITERS: usize = 1 << 10;
+    const IRRED_GF8: [u16; 30] = [0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
+        0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
+        0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
+        0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
+        0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
+        0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
+
+    #[test]
+    fn test_addition() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let x = (rng.gen::<u8>()) as u16;
+            let y = (rng.gen::<u8>()) as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.add(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_subtraction() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let x = (rng.gen::<u8>()) as u16;
+            let y = (rng.gen::<u8>()) as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.sub(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_cmul() {
+        // let mut rng = thread_rng();
+        for _ in 0..NITERS { // iterate over possibilities?
+            let p = Modulus::GF8 { p: 283 };
+            let x = 2_u16.pow(7) + 2_u16.pow(3) +1;
+            let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let z = d.cmul(&x, c).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, 2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1);
+        }
+    }
+
+    #[test]
+        fn test_proj() {
+            let mut rng = thread_rng();
+            for _ in 0..NITERS {
+                let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap()};
+        
+                let x = (rng.gen::<u8>()) as u16;
+                let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
+                let mut d = Dummy::new();
+                let out;
+                
+                {
+                    let x = d.encode(x, &p).unwrap();
+                    let z = d.proj(&x, &p, Some(tab)).unwrap();
+                    out = d.output(&z).unwrap().unwrap();
+                }
+                assert_eq!(out, (x*9 + 1) % p.size());
+            
+            }
+        }
+        //}}}
+}
+
+#[cfg(test)]
+mod GFk_dummy {
+    use super::*;
+    use itertools::Itertools;
+    use rand::{thread_rng, seq::SliceRandom, Rng};
+
+    const NITERS: usize = 1 << 10;
+    const IRRED_GFk: [(u16, u8); 11] = [(0b1101, 3), (0b1011, 3),
+    (0b100101, 5), (0b110111, 5), (0b111011, 5), 
+    (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
+    (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)]; 
+
+    #[test]
+    fn test_addition() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
+            let p = Modulus::GFk { p: poly.0, k: poly.1 };
+            let x = rng.gen::<u8>() as u16;
+            let y = rng.gen::<u8>() as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.add(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_subtraction() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
+            let p = Modulus::GFk { p: poly.0, k: poly.1 };
+            let x = (rng.gen::<u8>()) as u16;
+            let y = (rng.gen::<u8>()) as u16;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let y = d.encode(y, &p).unwrap();
+                let z = d.sub(&x, &y).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, x ^ y);
+        }
+    }
+
+    #[test]
+    fn test_cmul() {
+        // let mut rng = thread_rng();
+        for _ in 0..NITERS { // iterate over possibilities?
+            let p = Modulus::GFk { p: 283, k: 8 };
+            let x = 2_u16.pow(7) + 2_u16.pow(3) +1;
+            let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
+            let mut d = Dummy::new();
+            let out;
+            {
+                let x = d.encode(x, &p).unwrap();
+                let z = d.cmul(&x, c).unwrap();
+                out = d.output(&z).unwrap().unwrap();
+            }
+            assert_eq!(out, 2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1);
+        }
+    }
+
+    #[test]
+        fn test_proj() {
+            let mut rng = thread_rng();
+            for _ in 0..NITERS {
+                let poly = *IRRED_GFk.choose(&mut rng).unwrap();
+                let p = Modulus::GFk { p: poly.0, k: poly.1 };
+                let x = (rng.gen::<u8>() % p.size() as u8) as u16;
+                let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
+                let mut d = Dummy::new();
+                let out;
+                
+                {
+                    let x = d.encode(x, &p).unwrap();
+                    let z = d.proj(&x, &p, Some(tab)).unwrap();
+                    out = d.output(&z).unwrap().unwrap();
+                }
+                assert_eq!(out, (x*9 + 1) % p.size());
+            
+            }
+        }
+        //}}}
+}
