@@ -469,11 +469,11 @@ mod photon_test {
     #[test]
     fn photon256_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 0,
-                                          0, 0, 0, 0, 0, 0,
-                                          0, 0 ,0, 0, 0, 0,
-                                          0, 0 ,0, 0, 0, 0x40,
-                                          0, 0 ,0, 0, 0, 0x20,
-                                          0, 0, 0, 0, 0, 0x20);
+                                0, 0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0x40,
+                                0, 0 ,0, 0, 0, 0x20,
+                                0, 0, 0, 0, 0, 0x20);
         
         let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
         let ics = &[0, 1, 3, 7, 6, 4];
@@ -530,6 +530,72 @@ mod photon_test {
                                         0xd, 9, 4, 0xc, 7,
                                         5, 0xb, 8, 0xe, 0,
                                         0xf, 9, 1, 7, 0xc);
+        
+        assert_eq!(res,res_state_m);
+    }
+
+    #[test]
+    fn circuit_photon160() {
+        let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
+        let ics = &[0, 1, 2, 5, 3, 6, 4];
+        let x4_x_1 = &Modulus::GF4 { p: 19 };
+
+        // Build circuit
+        let mut b = CircuitBuilder::new();
+        let x = b.photon_garbler_input(x4_x_1, 7); 
+        let z = b.PermutePHOTON(&x, ics, SBOX_PRE, Z).unwrap();
+        b.output_photon(&z).unwrap();
+        let c = b.finish();
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input =    &[0, 0 ,0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 2,
+                                0, 0 ,0, 0, 0, 0, 8,
+                                0, 0 ,0, 0, 0, 0, 2,
+                                0, 0 ,0, 0, 0, 0, 4,
+                                0, 0, 0, 0, 0, 0, 2,
+                                0, 0, 0, 0, 0, 0, 4];
+
+        let res = c.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
+                                         0xf, 0xd, 0xc, 6, 6, 9, 0xa,
+                                         0, 0, 0xf, 6, 4, 0, 9,
+                                         0xd, 0xa, 5, 0xe, 4, 2, 0xd,
+                                         4, 3, 0xb, 0, 0xc, 0, 0xe,
+                                         0xa, 1, 6, 0xc, 0xe, 0xf, 7,
+                                         1, 0xd, 9, 8, 0xe, 4, 4);
+        
+        assert_eq!(res,res_state_m);
+    }
+
+    #[test]
+    fn circuit_photon256() {
+        let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        let ics = &[0, 1, 3, 7, 6, 4];
+        let x8_x4_x3_x_1 = &Modulus::GF8 { p: 283 };
+
+        // Build circuit
+        let mut b = CircuitBuilder::new();
+        let x = b.photon_garbler_input(x8_x4_x3_x_1, 6); 
+        let z = b.PermutePHOTON(&x, ics, SBOX_AES, Z).unwrap();
+        b.output_photon(&z).unwrap();
+        let c = b.finish();
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input =    &[0, 0 ,0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0x40,
+                                0, 0 ,0, 0, 0, 0x20,
+                                0, 0, 0, 0, 0, 0x20];
+
+        let res = c.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
+                                        0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
+                                        0x90, 0x5C, 0x66, 0xC8, 0xC0, 0x62, 
+                                        0x36, 0x38, 0x08, 0x8B, 0x69, 0x9C, 
+                                        0x1C, 0xA9, 0xCF, 0x93, 0x25, 0xAE, 
+                                        0xB5, 0xC9, 0x52, 0x16, 0xF7, 0x79); 
         
         assert_eq!(res,res_state_m);
     }
