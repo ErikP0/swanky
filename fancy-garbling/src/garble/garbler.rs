@@ -8,7 +8,8 @@ use crate::{
     errors::{FancyError, GarblerError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyReveal, HasModulus},
     util::{output_tweak, tweak, tweak2, RngExt},
-    wire::{Wire, Modulus}, PhotonState,
+    wire::{Wire, Modulus},
+    PhotonState,
 };
 use rand::{CryptoRng, RngCore};
 use scuttlebutt::{AbstractChannel, Block};

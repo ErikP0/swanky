@@ -5,6 +5,7 @@
 // See LICENSE for licensing information.
 
 use super::*;
+use super::photon::PhotonState;
 use crate::wire::Modulus;
 use crate::util;
 use itertools::Itertools;
