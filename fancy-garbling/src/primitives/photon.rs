@@ -189,7 +189,7 @@ impl<F: Fancy> PhotonState<F>
             self.ShiftRowsInv()?;
             // println!("shiftr: {}", res_state);
 
-            self.MixColumnsSerialInv(&mut f, Z)?;
+            self.MixColumnsSerialInv(&mut f, Z)?;       // Input Z coefficients as in the forward permutation
             // println!("mixc: {}", res_state);
         }
 
@@ -291,7 +291,7 @@ impl<F: Fancy> PhotonState<F>
                     if Z[j]!=1 {
                         el = f.cmul(&self.state_matrix[j][i],Z[j]).unwrap();
                     } else {
-                        el = self.state_matrix[j][i].clone();
+                        el = self.state_matrix[j][i];
                     }
                 sum = f.add(&sum, &el).unwrap();
                 }
@@ -302,6 +302,41 @@ impl<F: Fancy> PhotonState<F>
             self.state_matrix.rotate_left(1);
             last_row.clear();
         }
+
+        Ok(())
+    }
+    fn MixColumnsSerialInv(
+        &mut self,
+        f: &mut F,
+        Z: &[u16]
+    ) -> Result<(),F::Error> {
+        let mut Zrev = Z;
+        Zrev.reverse();
+
+        let d = self.dim();
+        
+        let mut first_row: Vec<F::Item> = Vec::with_capacity(d);
+
+        let mut el: F::Item;
+        for _ in 0..d {
+            for i in 0..d {
+                let mut sum = f.cmul(&self.state_matrix[0][i], Zrev[0]).unwrap();
+                for j in 1..d{
+                    if Z[j]!=1 {
+                        el = f.cmul(&self.state_matrix[j][i],Zrev[j]).unwrap();
+                    } else {
+                        el = self.state_matrix[j][i];
+                    }
+                sum = f.add(&sum, &el).unwrap();
+                }
+                first_row.push(sum);
+            }
+            self.extract(d-1);
+            self.insert(d-1, first_row.clone());
+            self.state_matrix.rotate_right(1);
+            first_row.clear();
+        }
+
 
         Ok(())
     }
