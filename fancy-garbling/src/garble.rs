@@ -1365,8 +1365,11 @@ mod GF4_photon_streaming {
             s.spawn(move |_| {
                 let mut gb = Garbler::new(sender, rng);
                 let (gb_inp, ev_inp) = gb.encode_photon(&inputs, d, &input_mod).unwrap();
-                for w_vec in ev_inp.iter() {
-                    w_vec.iter().for_each(|w| gb.send_wire(w).unwrap());
+                let state_m = ev_inp.state_matrix().clone();
+                for i in 0..d {
+                    for j in 0..d {
+                        gb.send_wire(&state_m[j][i]).unwrap();
+                    }
                 }
                 f_gb(&mut gb, &gb_inp);
             });
@@ -1391,7 +1394,6 @@ mod GF4_photon_streaming {
             b.output_photon(&z).unwrap()
         }
 
-        let mut rng = thread_rng();
         for _ in 0..16 {
             let q = Modulus::GF4 { p: 19 };
             streaming_test_GF4(
