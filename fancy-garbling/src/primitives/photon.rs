@@ -427,8 +427,8 @@ mod photon_test {
         let Z: &[u16] = &[1, 2, 9, 9, 2];
         let ics = &[0, 1, 3, 6, 4];
         let mut f = Dummy::new();
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 25]).unwrap();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 25]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
@@ -454,8 +454,8 @@ mod photon_test {
         let Z: &[u16] = &[1, 2, 8, 5, 8, 2];
         let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 36]).unwrap();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 36]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
@@ -483,8 +483,8 @@ mod photon_test {
         let Z = &[1, 4, 6, 1, 1, 6, 4];
         let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 49]).unwrap();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
@@ -514,8 +514,8 @@ mod photon_test {
         let Z = &[1, 4, 6, 1, 1, 6, 4];
         let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 49]).unwrap();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
@@ -546,8 +546,8 @@ mod photon_test {
         let Z = &[2, 4, 2, 11, 2, 8, 5, 6];
         let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
         let mut f = Dummy::new();
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 64]).unwrap();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 64]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
@@ -578,8 +578,8 @@ mod photon_test {
         let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
         let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
-        let x8_x4_x3_x_1 = &Modulus::GF8 { p: 283 };
-        let init_state_enc = f.encode_many(&init_state_m, &[*x8_x4_x3_x_1; 36]).unwrap();
+        let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x8_x4_x3_x_1; 36]).unwrap();
         let mut state = PhotonState::from_vec(init_state_enc, 5);
 
         state.PermutePHOTON(&mut f, ics, SBOX_AES, Z).unwrap();
@@ -601,13 +601,16 @@ mod photon_test {
     fn circuit_photon80() {
         let Z: &[u16] = &[1, 2, 9, 9, 2];
         let ics = &[0, 1, 3, 6, 4];
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 5;
 
         // Build circuit
         let mut b = CircuitBuilder::new();
-        let x = b.photon_garbler_input(x4_x_1, 5); 
-        let z = b.PermutePHOTON(&x, ics, SBOX_PRE, Z).unwrap();
-        b.output_photon(&z).unwrap();
+        let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+        let x = PhotonState::from_vec(x_vec, D);
+        x.PermutePHOTON(&mut b, ics, SBOX_PRE, Z).unwrap();
+        let z = x.output_photon().unwrap();
+        z.iter().map(|cr| b.output(cr).unwrap());
         let c = b.finish();
 
         // Evaluate with test vector (see test photon80_du)
@@ -630,13 +633,16 @@ mod photon_test {
     fn circuit_photon160() {
         let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
         let ics = &[0, 1, 2, 5, 3, 6, 4];
-        let x4_x_1 = &Modulus::GF4 { p: 19 };
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 6;
 
         // Build circuit
         let mut b = CircuitBuilder::new();
-        let x = b.photon_garbler_input(x4_x_1, 7); 
-        let z = b.PermutePHOTON(&x, ics, SBOX_PRE, Z).unwrap();
-        b.output_photon(&z).unwrap();
+        let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+        let x = PhotonState::from_vec(x_vec, D);
+        x.PermutePHOTON(&mut b, ics, SBOX_PRE, Z).unwrap();
+        let z = x.output_photon().unwrap();
+        z.iter().map(|cr| b.output(cr).unwrap());
         let c = b.finish();
 
         // Evaluate with test vector (see test photon80_du)
@@ -664,13 +670,17 @@ mod photon_test {
     fn circuit_photon256() {
         let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
         let ics = &[0, 1, 3, 7, 6, 4];
-        let x8_x4_x3_x_1 = &Modulus::GF8 { p: 283 };
+        let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 6;
 
         // Build circuit
         let mut b = CircuitBuilder::new();
-        let x = b.photon_garbler_input(x8_x4_x3_x_1, 6); 
-        let z = b.PermutePHOTON(&x, ics, SBOX_AES, Z).unwrap();
-        b.output_photon(&z).unwrap();
+        let x_vec = b.garbler_inputs(&[x8_x4_x3_x_1; D*D]); 
+        let x = PhotonState::from_vec(x_vec, D);
+        x.PermutePHOTON(&mut b, ics, SBOX_AES, Z).unwrap();
+        let z = x.output_photon().unwrap();
+        z.iter().map(|cr| b.output(cr).unwrap());
         let c = b.finish();
 
         // Evaluate with test vector (see test photon80_du)
