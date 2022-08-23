@@ -716,7 +716,11 @@ mod tests {
     use crate::util::RngExt;
     use itertools::{Itertools};
     use rand::{thread_rng, seq::SliceRandom};
-
+    use std::fs::File;
+    use std::io::{BufReader,prelude::*};
+    use std::path::Path;
+    
+     
     #[test]
     fn modM_eq() {
         let M1 = Modulus::Zq { q: 4 };
@@ -1089,56 +1093,82 @@ mod tests {
         }
     }
 
+
     #[test]
-    fn cmul_arithmeticGF4() {
-        let mut rng = thread_rng(); 
-        // Irreducible polynomial X^4 + X + 1
+    fn cmul_GF4_x4_x_1() {
+        let filename = Path::new("./helper_test_files/test_gf4_x4_x_1.txt");
+        let file = File::open(filename)
+            .expect("file not found!");
+        let  buf_reader = BufReader::new(file);
+
         const X4_X_1: u8 = 19;
-        
-        // (x^3 + 1) * (x^3 + x) = x^2 + 1
-        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3) + 1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+1] });
 
-        //( x^3) * ( x^3 + x^2 + x+1)        
-        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![1] });
+        for line in buf_reader.lines() {
+            let line = line.expect("Unable to read line");
+            let p: Vec<&str> = line.split(' ').collect();
+            let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
+            println!("x: {}, y: {} z: {}",x,y,z);
+            let w = Wire::GF4 { p: (X4_X_1), elts: vec![x]};
+            assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X_1), elts: vec![z] }); 
+        }
+    }
 
-        // ( x^2 +1) * ( x^3 + x^2 + x + 1)
-        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(2)+2] });
+    #[test]
+    fn cmul_GF4_x4_x3_1() {
+        let filename = Path::new("./helper_test_files/test_gf4_x4_x3_1.txt");
+        let file = File::open(filename)
+            .expect("file not found!");
+        let  buf_reader = BufReader::new(file);
 
-        // ( x^3 +1) * ( x^3 + x^2 + x+1)
-        let w = Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)+1]}; 
-        assert_eq!(w.cmul(2_u16.pow(3)+2_u16.pow(2)+2+1), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3)+2_u16.pow(2)+2] });
+        const X4_X3_1: u8 = 25;
 
-        let w = Wire::GF4 { p: (X4_X_1), elts: vec!(2_u16.pow(3))}; 
-        assert_eq!(w.cmul(2_u16.pow(3)), Wire::GF4 { p: (X4_X_1), elts: vec![2_u16.pow(3) + 4] });
-
-
-        let w = Wire::rand(&mut rng, &Modulus::GF4 { p: X4_X_1 });
-        assert_eq!(w.cmul(1),w);
+        for line in buf_reader.lines() {
+            let line = line.expect("Unable to read line");
+            let p: Vec<&str> = line.split(' ').collect();
+            let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
+            println!("x: {}, y: {} z: {}",x,y,z);
+            let w = Wire::GF4 { p: (X4_X3_1), elts: vec![x]};
+            assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X3_1), elts: vec![z] }); 
+        }
     }
     #[test]
-    fn cmul_arithmeticGF8() {
+    fn cmul_GF4_x4_x3_x2_x_1() {
+        let filename = Path::new("./helper_test_files/test_gf4_x4_x3_x2_x_1.txt");
+        let file = File::open(filename)
+            .expect("file not found!");
+        let  buf_reader = BufReader::new(file);
+
+        const X4_X_1: u8 = 31;
+
+        for line in buf_reader.lines() {
+            let line = line.expect("Unable to read line");
+            let p: Vec<&str> = line.split(' ').collect();
+            let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
+            println!("x: {}, y: {} z: {}",x,y,z);
+            let w = Wire::GF4 { p: (X4_X_1), elts: vec![x]};
+            assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X_1), elts: vec![z] }); 
+        }
+    }
+
+    #[test]
+    fn cmul_GF8_x8_x4_x3_x_1() {
+        let filename = Path::new("./helper_test_files/test_gf8_x8_x4_x3_x_1.txt");
+        let file = File::open(filename)
+            .expect("file not found!");
+        let  buf_reader = BufReader::new(file);
+
         // Irreducible polynomial X^8 + X^4 + X^3 + X + 1
         const X8_X4_X3_X_1: u16 = 283;
+        
 
-        // (x^7+x^3+1)*(x^6+x^5+x^2+x+1) = x^5 + x^4 + x^3 + 1
-        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7) + 2_u16.pow(3) +1] };
-        assert_eq!(w.cmul(2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1] });
-
-        // (x^6+x^4+x)*(x^7+x^6+x^5+x+1) = x^7 + x^4 + 1
-        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(6) + 2_u16.pow(4) + 2] };
-        assert_eq!(w.cmul(2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(4)+1] });
-
-        // (x^7 + x^3)*x^7 = x^7 + x^6 + x^5 + x^4 + x^2 + x
-        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7) + 2_u16.pow(3)] };
-        assert_eq!(w.cmul(2_u16.pow(7)),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(6)+ 2_u16.pow(5)+ 2_u16.pow(4)+2_u16.pow(2)+2]});
-
-        // x^7*x^7 = x^7 + x^4 + x^3 + x
-        let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)] };
-        assert_eq!(w.cmul(2_u16.pow(7)),Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![2_u16.pow(7)+2_u16.pow(4)+ 2_u16.pow(3)+2]});
-
+        for line in buf_reader.lines() {
+            let line = line.expect("Unable to read line");
+            let p: Vec<&str> = line.split(' ').collect();
+            let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
+            println!("x: {}, y: {} z: {}",x,y,z);
+            let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![x]};
+            assert_eq!(w.cmul(y), Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![z] }); 
+        }
     }
 
     #[test]
