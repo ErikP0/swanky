@@ -115,7 +115,7 @@ impl<F: Fancy> PhotonState<F>
     }
 
     /// Output the wires that make up a PhotonState.
-    pub fn output_photon(&self, f: &mut F) -> Result<Vec<F::Item>, F::Error> {
+    pub fn output_photon(&self) -> Result<Vec<F::Item>, F::Error> {
         let d = self.dim();
 
         let mut outputs = Vec::with_capacity(d*d);
@@ -320,19 +320,60 @@ impl<F: Fancy> PhotonState<F>
 //     }
 // }
 
+/// Extension trait for Fancy which provides Photon constructions
+pub trait PhotonGadgets: Fancy {
+    fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_196(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_256(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;   
+    
+    fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+}
+
 impl<F: Fancy> PhotonGadgets for F {
     fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 5);
         state.PermutePHOTON(&mut self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
-        Ok(state.output_photon(&mut self).unwrap())
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
+        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_196(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::from_vec(input, 7);
+        state.PermutePHOTON(&mut self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_256(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::from_vec(input, 8);
+        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
+        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 6, 4], SBOX_AES, &[2, 3, 1, 2, 1, 4])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
+        let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
+        state.PermutePHOTON(&mut self, ics, sbox, Zi)?;
+        Ok(state.output_photon().unwrap())
     }
 }
 
-/// Extension trait for Fancy which provides Photon constructions
-pub trait PhotonGadgets: Fancy {
-    fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> ;
-    
-}
 
 #[cfg(test)]
 mod photon_test {
@@ -352,26 +393,18 @@ mod photon_test {
         let ics = &[0, 1, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let mut init_state = f.encode_photon(&init_state_m, 5, x4_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_PRE).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 25]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, &[0, 1, 3, 6, 4], SBOX_PRE, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
+        // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
                                           3, 2, 0xc, 5, 7,
                                           0xd, 9, 4, 0xc, 7,
                                           5, 0xb, 8, 0xe, 0,
                                           0xf, 9, 1, 7, 0xc);
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
@@ -387,27 +420,18 @@ mod photon_test {
         let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let mut init_state = f.encode_photon(&init_state_m, 6, x4_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_PRE).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 36]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, ics, SBOX_PRE, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
         let res_state_m: Vec<u16> = vec!(9, 0xe, 6, 0xe, 6, 8,
                                          5, 2, 3, 0xb, 2, 0xd,
                                          0xf, 2, 2, 4, 5, 0,
                                          0xc, 0xa, 0xd, 0xe, 9, 3,
                                          3, 2, 6, 0, 2, 2,
                                          0xc, 0xa, 0xf, 0xb, 0xd, 9);
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
@@ -425,20 +449,11 @@ mod photon_test {
         let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let mut init_state = f.encode_photon(&init_state_m, 7, x4_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_PRE).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 49]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, ics, SBOX_PRE, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
+        // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
                                          0xf, 0xd, 0xc, 6, 6, 9, 0xa,
                                          0, 0, 0xf, 6, 4, 0, 9,
@@ -446,7 +461,8 @@ mod photon_test {
                                          4, 3, 0xb, 0, 0xc, 0, 0xe,
                                          0xa, 1, 6, 0xc, 0xe, 0xf, 7,
                                          1, 0xd, 9, 8, 0xe, 4, 4);
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
@@ -464,20 +480,11 @@ mod photon_test {
         let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let mut init_state = f.encode_photon(&init_state_m, 7, x4_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_PRE).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 49]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, ics, SBOX_PRE, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
+        // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(0xe, 0xd, 4, 0xe, 2, 9, 3,
                                          7, 6, 0xc, 8, 8, 0, 8,
                                          0xa, 7, 1, 1, 0xf, 7, 3,
@@ -485,7 +492,8 @@ mod photon_test {
                                          8, 3, 0xc, 1, 5, 0xc, 1,
                                          0xd, 3, 6, 2, 7, 9, 1,
                                          0xf, 0xb, 0xb, 4, 1, 0xb, 7);
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
@@ -504,20 +512,11 @@ mod photon_test {
         let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
         let mut f = Dummy::new();
         let x4_x_1 = &Modulus::GF4 { p: 19 };
-        let mut init_state = f.encode_photon(&init_state_m, 8, x4_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_PRE).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x4_x_1; 64]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, ics, SBOX_PRE, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_PRE, Z).unwrap();
+        // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(1, 9, 8, 0, 0xc, 0xa, 7, 8,
                                          7, 0xc, 0xd, 0, 6, 0xf, 4, 9,
                                          3, 0xf, 3, 0xe, 2, 4, 8, 1,
@@ -526,7 +525,8 @@ mod photon_test {
                                          2, 0xe, 0xc, 0xb, 3, 1, 0xc, 8,
                                          4, 1, 0xf, 0xd, 0xd, 0xc, 0xc, 2,
                                          2, 0, 9, 0xc, 1, 0xb, 0, 0xc);
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
@@ -544,27 +544,19 @@ mod photon_test {
         let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
         let x8_x4_x3_x_1 = &Modulus::GF8 { p: 283 };
-        let mut init_state = f.encode_photon(&init_state_m, 6, x8_x4_x3_x_1).unwrap();
-        let full = init_state.clone();
-        println!("init: {}", init_state);
-        f.AddConstants(&mut init_state, 1, ics).unwrap();
-        println!("addc: {}", init_state);
-        f.SubCells(&mut init_state, SBOX_AES).unwrap();
-        println!("subc: {}", init_state);
-        f.ShiftRows(&mut init_state).unwrap();
-        println!("shiftr: {}", init_state);
-        f.MixColumnsSerial(&mut init_state, Z).unwrap();
-        println!("mixc: {}", init_state);
+        let init_state_enc = f.encode_many(&init_state_m, &[*x8_x4_x3_x_1; 36]).unwrap();
+        let mut state = PhotonState::from_vec(init_state_enc, 5);
 
-        let res = f.PermutePHOTON(&full, ics, SBOX_AES, Z).unwrap();
-        println!("full: {}", res);
+        state.PermutePHOTON(&mut f, ics, SBOX_AES, Z).unwrap();
+        // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
                                          0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
                                          0x90, 0x5C, 0x66, 0xC8, 0xC0, 0x62, 
                                          0x36, 0x38, 0x08, 0x8B, 0x69, 0x9C, 
                                          0x1C, 0xA9, 0xCF, 0x93, 0x25, 0xAE, 
                                          0xB5, 0xC9, 0x52, 0x16, 0xF7, 0x79); 
-        assert_eq!(res_state_m, f.output_photon(&res).unwrap().unwrap());
+        let state_o = state.output_photon().unwrap();
+        assert_eq!(res_state_m, state_o.into_iter().map(|w| w.val()).collect_vec());
 
     }
 
