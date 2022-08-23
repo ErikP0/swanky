@@ -58,7 +58,7 @@ struct PhotonState<F: Fancy> {
 impl<F: Fancy> PhotonState<F> 
     {
     /// Create a new PhotonState 'matrix' from some wires.
-    pub fn new(ws: Vec<Vec<F::Item>>, d: usize) -> Self{
+    pub fn new(ws: Vec<Vec<F::Item>>, d: usize) -> Self {
         debug_assert_eq!(ws.len(), d);
         debug_assert!(ws.iter().all(|c| c.len() == d));
 
@@ -66,7 +66,7 @@ impl<F: Fancy> PhotonState<F>
     }
 
     /// Create a new PhotonState matrix from an ordered element array.
-    pub fn from_vec(w_vec: Vec<F::Item>, d: usize) -> Self{
+    pub fn from_vec(w_vec: Vec<F::Item>, d: usize) -> Self {
         assert_eq!(w_vec.len(), d*d);
         let mut ws: Vec<Vec<F::Item>> = Vec::with_capacity(d*d);
         let mut row: Vec<F::Item>;
@@ -90,15 +90,8 @@ impl<F: Fancy> PhotonState<F>
         }
         mod0
     }
-
-    // Return the size of the filed of all the wires in the state matrix.
     fn size(&self) -> usize {
         self.modulus().size().into()
-
-    }
-    /// Get `state_matrix`, the underlying structure of PhotonState.
-    fn state_matrix(&self) -> &Vec<Vec<F::Item>> {
-        &self.state_matrix
     }
 
     /// Get `d`, the dimension of the state matrix
@@ -220,7 +213,7 @@ impl<F: Fancy> PhotonState<F>
 
         let mut ic_add: F::Item;
         for i in 0..d {
-            ic_add = f.add(&self.state_matrix()[i][0], &w_ics[i])?;
+            ic_add = f.add(&self.state_matrix[i][0], &w_ics[i])?;
             self.state_matrix[i][0] = f.add(&ic_add, &w_rc)?;
         }
 
@@ -254,7 +247,7 @@ impl<F: Fancy> PhotonState<F>
             let mut tmp: Vec<F::Item> = Vec::with_capacity(d);
             for i in 1..d {
                 for j in 0..d {
-                    tmp.push(self.state_matrix()[i][j].clone());
+                    tmp.push(self.state_matrix[i][j].clone());
                 }
                 for j in 0..d { 
                     self.state_matrix[i][j] = tmp[(j+i)%d].clone();
@@ -271,7 +264,7 @@ impl<F: Fancy> PhotonState<F>
             let mut tmp: Vec<F::Item> = Vec::with_capacity(d);
             for i in 1..d {
                 for j in 0..d {
-                    tmp.push(self.state_matrix()[i][j].clone());
+                    tmp.push(self.state_matrix[i][j].clone());
                 }
                 for j in 0..d { 
                     self.state_matrix[i][j] = tmp[(j-i+d)%d].clone();
@@ -293,12 +286,12 @@ impl<F: Fancy> PhotonState<F>
         let mut el: F::Item;
         for _ in 0..d {
             for i in 0..d {
-                let mut sum = f.cmul(&self.state_matrix()[0][i], Z[0]).unwrap();
+                let mut sum = f.cmul(&self.state_matrix[0][i], Z[0]).unwrap();
                 for j in 1..d{
                     if Z[j]!=1 {
-                        el = f.cmul(&self.state_matrix()[j][i],Z[j]).unwrap();
+                        el = f.cmul(&self.state_matrix[j][i],Z[j]).unwrap();
                     } else {
-                        el = self.state_matrix()[j][i].clone();
+                        el = self.state_matrix[j][i].clone();
                     }
                 sum = f.add(&sum, &el).unwrap();
                 }
