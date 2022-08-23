@@ -20,12 +20,10 @@ struct PhotonState<F: Fancy> {
     d: usize,
 }
 
-impl<F> PhotonState<F::Item> 
-    where
-        F: Fancy
+impl<F: Fancy> PhotonState<F> 
     {
     /// Create a new PhotonState 'matrix' from some wires.
-    pub fn new(ws: Vec<Vec<F::Item>>, d: usize) -> PhotonState<F::Item> {
+    pub fn new(ws: Vec<Vec<F::Item>>, d: usize) -> PhotonState<F> {
         debug_assert_eq!(ws.len(), d);
         debug_assert!(ws.iter().all(|c| c.len() == d));
 
@@ -33,7 +31,7 @@ impl<F> PhotonState<F::Item>
     }
 
     /// Create a new PhotonState matrix from an ordered element array.
-    pub fn from_vec(w_vec: Vec<F::Item>, d: usize) -> PhotonState<F::Item> {
+    pub fn from_vec(w_vec: Vec<F::Item>, d: usize) -> PhotonState<F> {
         assert_eq!(w_vec.len(), d*d);
         let mut ws: Vec<Vec<F::Item>> = Vec::with_capacity(d*d);
         let mut row: Vec<F::Item>;
@@ -89,7 +87,7 @@ impl<F> PhotonState<F::Item>
     }
 
     /// Output the wires that make up a PhotonState.
-    fn output_photon(&self) -> Result<Option<Vec<u16>>, F::Error> {
+    fn output_photon(&self, f: &mut F) -> Result<Option<Vec<u16>>, F::Error> {
         let d = self.dim();
         let state = self.state_matrix();
 
@@ -97,7 +95,7 @@ impl<F> PhotonState<F::Item>
 
         for c in 0..d {
             for r in 0..d {
-                outputs.push(self.output(&state[r][c])?);
+                outputs.push(f.output(&state[r][c])?);
             }
         }
     
@@ -186,7 +184,7 @@ impl<F> PhotonState<F::Item>
         let w_rc = f.constant(rc, &self.modulus())?;
         let d = self.dim();
 
-        let mut ic_add: Self::Item;
+        let mut ic_add: F::Item;
         for i in 0..d {
             ic_add = f.add(&self.state_matrix()[i][0], &w_ics[i])?;
             self.state_matrix[i][0] = f.add(&ic_add, &w_rc)?;
@@ -219,7 +217,7 @@ impl<F> PhotonState<F::Item>
         &mut self, 
     ) -> Result<(), F::Error> { 
             let d = self.dim();
-            let mut tmp: Vec<Self::Item> = Vec::with_capacity(d);
+            let mut tmp: Vec<F::Item> = Vec::with_capacity(d);
             for i in 1..d {
                 for j in 0..d {
                     tmp.push(self.state_matrix()[i][j].clone());
@@ -282,26 +280,26 @@ impl<F> PhotonState<F::Item>
     }
 }
 
-impl<W: Clone + HasModulus + std::fmt::Display> std::fmt::Display for PhotonState<W> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(fmt, "Modulus state: {} \n", self.modulus()).unwrap();
-        for row in self.state_matrix() {
-            for el in row.iter() {
-                write!(fmt, "{} ", el).unwrap();
-            }
-            write!(fmt, "\n").unwrap();
-        }
-        Ok(())
-    }
-}
+// impl<F: Clone + HasModulus + std::fmt::Display> std::fmt::Display for PhotonState<F> {
+//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+//         write!(fmt, "Modulus state: {} \n", self.modulus()).unwrap();
+//         for row in self.state_matrix() {
+//             for el in row.iter() {
+//                 write!(fmt, "{} ", el).unwrap();
+//             }
+//             write!(fmt, "\n").unwrap();
+//         }
+//         Ok(())
+//     }
+// }
 
 impl<F: Fancy> PhotonGadgets for F {}
 
 /// Extension trait for Fancy which provides Photon constructions
 pub trait PhotonGadgets: Fancy {
     fn photon_80(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
-        let mut state = PhotonState::from_vec(input, [0,1,3,6,4], [1,2,9,9,2]);
-        state.forward(self, cmul_mod_x4_x_1)?;
+        let mut state = PhotonState::from_vec(input, 5);
+        state.PermutePHOTON(&mut self, &[0,1,3,6,4], Self::SBOX_PRE, &[1,2,9,9,2])?;
         Ok(state.into_wires())
     }
     
