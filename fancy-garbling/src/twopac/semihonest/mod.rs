@@ -22,7 +22,7 @@ mod tests {
         CrtBundle,
         CrtGadgets,
         Fancy,
-        FancyInput, Modulus, PhotonState, PhotonGadgets,
+        FancyInput, Modulus,
     };
     use itertools::Itertools;
     use ocelot::ot::{ChouOrlandiReceiver, ChouOrlandiSender};

@@ -1313,7 +1313,7 @@ mod GF4_photon_streaming {
         FancyInput,
         Garbler,
         Wire,
-        Modulus, PhotonState, PhotonGadgets,
+        Modulus,
     };
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};

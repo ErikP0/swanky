@@ -135,18 +135,6 @@ impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
         let (gbs, evs) = self.encode_many_wires(&xs, &ms)?;
         Ok((BinaryBundle::new(gbs), BinaryBundle::new(evs)))
     }
-
-    /// Encode a `PhotonState`, producing zero wires as well as encoded values.
-    pub fn encode_photon(
-        &mut self,
-        values: &[u16],
-        d: usize,
-        modulus: &Modulus,
-    ) -> Result<(PhotonState<Wire>, PhotonState<Wire>), GarblerError> {
-        let moduli = &vec![*modulus; d*d];
-        let (gbs, evs) = self.encode_many_wires(values, moduli)?;
-        Ok((PhotonState::from_vec(gbs, d), PhotonState::from_vec(evs, d)))
-    }
 }
 
 impl<C: AbstractChannel, RNG: RngCore + CryptoRng> FancyReveal for Garbler<C, RNG> {

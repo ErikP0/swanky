@@ -122,7 +122,7 @@ impl<F: Fancy> PhotonState<F>
 
         for c in 0..d {
             for r in 0..d {
-                outputs.push(self.state_matrix[r][c]);
+                outputs.push(self.state_matrix[r][c].clone());
             }
         }
     
@@ -147,16 +147,16 @@ impl<F: Fancy> PhotonState<F>
         // let mut res_state = self.clone();
         // println!("initial: {}", res_state);
         for round in 0..12 {
-            self.AddConstants(&mut f, RCS[round], ics)?;
+            self.AddConstants(f, RCS[round], ics)?;
             // println!("addc: {}", res_state);
 
-            self.SubCells(&mut f, sbox)?;
+            self.SubCells(f, sbox)?;
             // println!("subc: {}", res_state);
 
             self.ShiftRows()?;
             // println!("shiftr: {}", res_state);
 
-            self.MixColumnsSerial(&mut f, Z)?;
+            self.MixColumnsSerial(f, Z)?;
             // println!("mixc: {}", res_state);
         }
 
@@ -180,16 +180,16 @@ impl<F: Fancy> PhotonState<F>
         // let mut res_state = self.clone();
         // println!("initial: {}", res_state);
         for round in 0..12 {
-            self.AddConstants(&mut f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
+            self.AddConstants(f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
             // println!("addc: {}", res_state);
 
-            self.SubCells(&mut f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
+            self.SubCells(f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
             // println!("subc: {}", res_state);
 
             self.ShiftRowsInv()?;
             // println!("shiftr: {}", res_state);
 
-            self.MixColumnsSerialInv(&mut f, Z)?;       // Input Z coefficients as in the forward permutation
+            self.MixColumnsSerialInv(f, Z)?;       // Input Z coefficients as in the forward permutation
             // println!("mixc: {}", res_state);
         }
 
@@ -291,7 +291,7 @@ impl<F: Fancy> PhotonState<F>
                     if Z[j]!=1 {
                         el = f.cmul(&self.state_matrix[j][i],Z[j]).unwrap();
                     } else {
-                        el = self.state_matrix[j][i];
+                        el = self.state_matrix[j][i].clone();
                     }
                 sum = f.add(&sum, &el).unwrap();
                 }
@@ -325,7 +325,7 @@ impl<F: Fancy> PhotonState<F>
                     if Z[j]!=1 {
                         el = f.cmul(&self.state_matrix[j][i],Zrev[j]).unwrap();
                     } else {
-                        el = self.state_matrix[j][i];
+                        el = self.state_matrix[j][i].clone();
                     }
                 sum = f.add(&sum, &el).unwrap();
                 }
@@ -373,38 +373,38 @@ pub trait PhotonGadgets: Fancy {
 impl<F: Fancy> PhotonGadgets for F {
     fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 5);
-        state.PermutePHOTON(&mut self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
+        state.PermutePHOTON(self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
-        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_196(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 7);
-        state.PermutePHOTON(&mut self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
+        state.PermutePHOTON(self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_256(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 8);
-        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
-        state.PermutePHOTON(&mut self, &[0, 1, 3, 7, 6, 4], SBOX_AES, &[2, 3, 1, 2, 1, 4])?;
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_AES, &[2, 3, 1, 2, 1, 4])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::from_vec(input, 6);
         let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
-        state.PermutePHOTON(&mut self, ics, sbox, Zi)?;
+        state.PermutePHOTON(self, ics, sbox, Zi)?;
         Ok(state.output_photon().unwrap())
     }
 }
