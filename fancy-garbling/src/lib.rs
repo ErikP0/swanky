@@ -36,4 +36,4 @@ mod wire;
 
 mod primitives;
 
-pub use crate::{errors::FancyError, fancy::*, garble::*, wire::*};
+pub use crate::{errors::FancyError, fancy::*, garble::*, wire::*, primitives::*};
