@@ -367,6 +367,9 @@ pub trait PhotonGadgets: Fancy {
     fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;   
     
     fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+
+    fn photon_custom_inv(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+
 }
 
 impl<F: Fancy> PhotonGadgets for F {
@@ -376,6 +379,7 @@ impl<F: Fancy> PhotonGadgets for F {
         Ok(state.output_photon().unwrap())
     }
 
+    
     fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 6);
         state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
@@ -406,6 +410,7 @@ impl<F: Fancy> PhotonGadgets for F {
         state.PermutePHOTON(self, ics, sbox, Zi)?;
         Ok(state.output_photon().unwrap())
     }
+
 }
 
 
@@ -441,7 +446,6 @@ mod photon_test {
                                           5, 0xb, 8, 0xe, 0,
                                           0xf, 9, 1, 7, 0xc);
         assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
-
     }
 
     #[test]
@@ -597,13 +601,13 @@ mod photon_test {
         const D: usize = 5;
 
         // Build circuit
-        let mut b = CircuitBuilder::new();
-        let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-        let x = PhotonState::new(x_vec, D);
-        x.PermutePHOTON(&mut b, ics, SBOX_PRE, Z).unwrap();
-        let z = x.output_photon().unwrap();
-        b.outputs(&z);
-        let c = b.finish();
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_100(x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
 
         // Evaluate with test vector (see test photon80_du)
         let garbler_input =    &[0, 0 ,0, 0, 4,
@@ -611,7 +615,7 @@ mod photon_test {
                                 0, 0 ,0, 0, 4,
                                 0, 0 ,0, 0, 1,
                                 0, 0 ,0, 1, 0];
-        let res = c.eval_plain(garbler_input, &[]).unwrap();
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
         let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
                                         3, 2, 0xc, 5, 7,
                                         0xd, 9, 4, 0xc, 7,
@@ -629,13 +633,13 @@ mod photon_test {
         const D: usize = 6;
 
         // Build circuit
-        let mut b = CircuitBuilder::new();
-        let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-        let x = PhotonState::new(x_vec, D);
-        x.PermutePHOTON(&mut b, ics, SBOX_PRE, Z).unwrap();
-        let z = x.output_photon().unwrap();
-        b.outputs(&z);
-        let c = b.finish();
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_196(x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
 
         // Evaluate with test vector 
         let garbler_input =    &[0, 0 ,0, 0, 0, 0, 0,
@@ -646,7 +650,7 @@ mod photon_test {
                                 0, 0, 0, 0, 0, 0, 2,
                                 0, 0, 0, 0, 0, 0, 4];
 
-        let res = c.eval_plain(garbler_input, &[]).unwrap();
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
         let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
                                          0xf, 0xd, 0xc, 6, 6, 9, 0xa,
                                          0, 0, 0xf, 6, 4, 0, 9,
@@ -667,13 +671,13 @@ mod photon_test {
         const D: usize = 6;
 
         // Build circuit
-        let mut b = CircuitBuilder::new();
-        let x_vec = b.garbler_inputs(&[x8_x4_x3_x_1; D*D]); 
-        let x = PhotonState::new(x_vec, D);
-        x.PermutePHOTON(&mut b, ics, SBOX_AES, Z).unwrap();
-        let z = x.output_photon().unwrap();
-        b.outputs(&z);
-        let c = b.finish();
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_288(x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
 
         // Evaluate with test vector 
         let garbler_input =    &[0, 0 ,0, 0, 0, 0,
@@ -683,7 +687,7 @@ mod photon_test {
                                 0, 0 ,0, 0, 0, 0x20,
                                 0, 0, 0, 0, 0, 0x20];
 
-        let res = c.eval_plain(garbler_input, &[]).unwrap();
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
         let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
                                         0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
                                         0x90, 0x5C, 0x66, 0xC8, 0xC0, 0x62, 
@@ -693,6 +697,41 @@ mod photon_test {
         
         assert_eq!(res,res_state_m);
     }
+
+
+    #[test]
+    fn forward_backward_permutation_80() {
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 5;
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_100(x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input =    &[0, 0 ,0, 0, 4,
+                                0, 0, 0, 0, 1,
+                                0, 0 ,0, 0, 4,
+                                0, 0 ,0, 0, 1,
+                                0, 0 ,0, 1, 0];
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
+                                        3, 2, 0xc, 5, 7,
+                                        0xd, 9, 4, 0xc, 7,
+                                        5, 0xb, 8, 0xe, 0,
+                                        0xf, 9, 1, 7, 0xc);
+        
+        assert_eq!(res,res_state_m);
+    }
+}
+
 
 
 /// ---------- garble.rs tests --------------------
