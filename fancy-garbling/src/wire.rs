@@ -74,7 +74,7 @@ pub enum Wire {
 
 /// Modulus type, either an integer modulus for Zq, or an irreducible polynomial representation for GF(2^k)
 #[derive(Copy, Debug, Clone, PartialEq, Eq, Hash)]
-// #[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde1", derive(serde::Serialize, serde::Deserialize))]
 pub enum Modulus {
     /// Integer modulus for Zq.
     Zq {

@@ -8,7 +8,7 @@ use crate::{
     errors::{FancyError, GarblerError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyReveal, HasModulus},
     util::{output_tweak, tweak, tweak2, RngExt},
-    wire::{Wire, Modulus}, PhotonState,
+    wire::{Wire, Modulus},
 };
 use rand::{CryptoRng, RngCore};
 use scuttlebutt::{AbstractChannel, Block};
@@ -134,18 +134,6 @@ impl<C: AbstractChannel, RNG: CryptoRng + RngCore> Garbler<C, RNG> {
         let ms = vec![Modulus::Zq{ q: 2 }; nbits];
         let (gbs, evs) = self.encode_many_wires(&xs, &ms)?;
         Ok((BinaryBundle::new(gbs), BinaryBundle::new(evs)))
-    }
-
-    /// Encode a `PhotonState`, producing zero wires as well as encoded values.
-    pub fn encode_photon(
-        &mut self,
-        values: &[u16],
-        d: usize,
-        modulus: &Modulus,
-    ) -> Result<(PhotonState<Wire>, PhotonState<Wire>), GarblerError> {
-        let moduli = &vec![*modulus; d*d];
-        let (gbs, evs) = self.encode_many_wires(values, moduli)?;
-        Ok((PhotonState::from_vec(gbs, d), PhotonState::from_vec(evs, d)))
     }
 }
 
