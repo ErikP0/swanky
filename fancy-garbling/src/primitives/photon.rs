@@ -715,7 +715,9 @@ mod photon_test {
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-            let z = b.photon_100(&x_vec).unwrap();
+
+            let xx = b.photon_100(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
             b.outputs(&z);
             b.finish()
         };
@@ -727,13 +729,7 @@ mod photon_test {
                                 0, 0 ,0, 0, 1,
                                 0, 0 ,0, 1, 0];
         let res = circ.eval_plain(garbler_input, &[]).unwrap();
-        let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
-                                        3, 2, 0xc, 5, 7,
-                                        0xd, 9, 4, 0xc, 7,
-                                        5, 0xb, 8, 0xe, 0,
-                                        0xf, 9, 1, 7, 0xc);
-        
-        assert_eq!(res,res_state_m);
+        assert_eq!(res,garbler_input);
     }
 
 
