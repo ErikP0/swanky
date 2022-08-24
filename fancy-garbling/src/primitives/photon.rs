@@ -401,7 +401,7 @@ impl<F: Fancy> PhotonGadgets for F {
     }
 
     fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
-        let mut state: PhotonState<F> = PhotonState::from_vec(input, d);
+        let mut state: PhotonState<F> = PhotonState::new(input, d);
         let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
         state.PermutePHOTON(self, ics, sbox, Zi)?;
         Ok(state.output_photon().unwrap())
