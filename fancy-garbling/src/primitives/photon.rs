@@ -409,7 +409,7 @@ impl<F: Fancy> PhotonGadgets for F {
         Ok(state.output_photon().unwrap())
     }
 
-    fn photon_custom_inv(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_custom_inv(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, d);
         let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
         state.PermutePHOTONInverse(self, ics, sbox, Zi)?;
