@@ -1,6 +1,6 @@
 extern crate fancy_garbling;
 
-use fancy_garbling::Wire;
+use fancy_garbling::{Wire, Modulus};
 use std::collections::HashMap;
 
 fn main() {
@@ -13,7 +13,7 @@ fn main() {
                 match q.parse::<u16>() {
                     Ok(q) => {
                         // Generate the delta
-                        deltas.insert(q, Wire::rand_delta(&mut rng, q));
+                        deltas.insert(q, Wire::rand_delta(&mut rng, &Modulus::Zq{ q }));
                     }
                     _ => {
                         println!("Error parsing \"{}\", number expected", q);
