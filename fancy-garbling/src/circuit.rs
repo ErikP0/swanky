@@ -535,7 +535,7 @@ impl CircuitBuilder {
 #[cfg(test)]
 mod plaintext {
     use super::*;
-    use crate::util::{RngExt, self};
+    use crate::util::RngExt;
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
