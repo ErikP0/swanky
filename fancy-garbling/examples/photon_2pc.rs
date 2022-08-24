@@ -2,7 +2,7 @@ use fancy_garbling::{
     circuit::Circuit,circuit::CircuitBuilder,
     twopac::semihonest::{Evaluator, Garbler},
     FancyInput,
-    photon::PhotonGadgets, Fancy
+    photon_GF::PhotonGadgets, Fancy
 };
 use fancy_garbling::Modulus;
 use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
