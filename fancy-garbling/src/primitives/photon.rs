@@ -266,7 +266,7 @@ impl<F: Fancy> PhotonState<F>
                     tmp.push(self.state_matrix[i][j].clone());
                 }
                 for j in 0..d { 
-                    self.state_matrix[i][j] = tmp[(j-i+d)%d].clone();
+                    self.state_matrix[i][j] = tmp[(j+d-i)%d].clone();
                 }
                 tmp.clear();
             }
@@ -450,7 +450,7 @@ mod photon_test {
                                           0xd, 9, 4, 0xc, 7,
                                           5, 0xb, 8, 0xe, 0,
                                           0xf, 9, 1, 7, 0xc);
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod photon_test {
                                          3, 2, 6, 0, 2, 2,
                                          0xc, 0xa, 0xf, 0xb, 0xd, 9);
 
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
 
@@ -504,7 +504,7 @@ mod photon_test {
                                          4, 3, 0xb, 0, 0xc, 0, 0xe,
                                          0xa, 1, 6, 0xc, 0xe, 0xf, 7,
                                          1, 0xd, 9, 8, 0xe, 4, 4);
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
 
@@ -533,7 +533,7 @@ mod photon_test {
                                          8, 3, 0xc, 1, 5, 0xc, 1,
                                          0xd, 3, 6, 2, 7, 9, 1,
                                          0xf, 0xb, 0xb, 4, 1, 0xb, 7);
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
 
@@ -564,7 +564,7 @@ mod photon_test {
                                          2, 0xe, 0xc, 0xb, 3, 1, 0xc, 8,
                                          4, 1, 0xf, 0xd, 0xd, 0xc, 0xc, 2,
                                          2, 0, 9, 0xc, 1, 0xb, 0, 0xc);
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
 
@@ -592,7 +592,7 @@ mod photon_test {
                                          0x36, 0x38, 0x08, 0x8B, 0x69, 0x9C, 
                                          0x1C, 0xA9, 0xCF, 0x93, 0x25, 0xAE, 
                                          0xB5, 0xC9, 0x52, 0x16, 0xF7, 0x79); 
-        assert_eq!(res_state_m, state.into_iter().map(|w| w.val()).collect_vec());
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
 
@@ -635,7 +635,7 @@ mod photon_test {
         // let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
         // let ics = &[0, 1, 2, 5, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
-        const D: usize = 6;
+        const D: usize = 7;
 
         // Build circuit
         let circ = {
@@ -705,8 +705,8 @@ mod photon_test {
 
     #[test]
     fn forward_backward_permutation_80() {
-        // let Z: &[u16] = &[1, 2, 9, 9, 2];
-        // let ics = &[0, 1, 3, 6, 4];
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 5;
 
@@ -834,7 +834,8 @@ mod photon_test {
         let mut ev =
             twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
         let xs = ev.receive_many(&vec![p; d*d]).unwrap();
-        let result = ev.outputs(&xs).unwrap().unwrap();
+        let xs_res = ev.photon_100(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
         println!("res: {:?}", result);
         assert_eq!(target, result);
     }
@@ -873,7 +874,8 @@ mod photon_test {
         let mut ev =
             twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
         let xs = ev.receive_many(&vec![p; d*d]).unwrap();
-        let result = ev.outputs(&xs).unwrap().unwrap();
+        let xs_res = ev.photon_196(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
         println!("res: {:?}", result);
         assert_eq!(target, result);
     }
@@ -893,7 +895,7 @@ mod photon_test {
         // Run dummy version.
         let mut dummy = Dummy::new();
         let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
-        let target_enc = dummy.photon_256(&dummy_input).unwrap();
+        let target_enc = dummy.photon_288(&dummy_input).unwrap();
         let target = dummy.outputs(&target_enc).unwrap().unwrap();
         println!("trgt: {:?}", target);
 
@@ -904,7 +906,7 @@ mod photon_test {
             let mut gb =
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
-            let gb_o = gb.photon_256(&xs).unwrap();
+            let gb_o = gb.photon_288(&xs).unwrap();
             gb.outputs(&gb_o);
         });
 
@@ -912,7 +914,8 @@ mod photon_test {
         let mut ev =
             twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
         let xs = ev.receive_many(&vec![p; d*d]).unwrap();
-        let result = ev.outputs(&xs).unwrap().unwrap();
+        let xs_res = ev.photon_288(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
         println!("res: {:?}", result);
         assert_eq!(target, result);
     }
