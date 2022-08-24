@@ -609,7 +609,7 @@ mod photon_test {
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-            let z = b.photon_100(x_vec).unwrap();
+            let z = b.photon_100(&x_vec).unwrap();
             b.outputs(&z);
             b.finish()
         };
@@ -641,7 +641,7 @@ mod photon_test {
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-            let z = b.photon_196(x_vec).unwrap();
+            let z = b.photon_196(&x_vec).unwrap();
             b.outputs(&z);
             b.finish()
         };
@@ -679,7 +679,7 @@ mod photon_test {
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-            let z = b.photon_288(x_vec).unwrap();
+            let z = b.photon_288(&x_vec).unwrap();
             b.outputs(&z);
             b.finish()
         };
@@ -715,7 +715,7 @@ mod photon_test {
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-            let z = b.photon_100(x_vec).unwrap();
+            let z = b.photon_100(&x_vec).unwrap();
             b.outputs(&z);
             b.finish()
         };
@@ -735,8 +735,6 @@ mod photon_test {
         
         assert_eq!(res,res_state_m);
     }
-}
-
 
 
 /// ---------- garble.rs tests --------------------
@@ -924,4 +922,3 @@ mod photon_test {
         assert_eq!(target, result);
     }
 }
-
