@@ -58,7 +58,7 @@ struct PhotonState<F: Fancy> {
 impl<F: Fancy> PhotonState<F> 
     {
     /// Create a new PhotonState matrix from an ordered element array.
-    pub fn new(w_vec: Vec<F::Item>, d: usize) -> Self {
+    pub fn new(w_vec: &Vec<F::Item>, d: usize) -> Self {
         assert_eq!(w_vec.len(), d*d);
         let mut ws: Vec<Vec<F::Item>> = Vec::with_capacity(d*d);
         let mut row: Vec<F::Item>;
@@ -356,55 +356,53 @@ impl<F: Fancy> PhotonState<F>
 
 /// Extension trait for Fancy which provides Photon constructions
 pub trait PhotonGadgets: Fancy {
-    fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+    fn photon_100(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
 
-    fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+    fn photon_144(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
 
-    fn photon_196(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+    fn photon_196(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
 
-    fn photon_256(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+    fn photon_256(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
 
-    fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;   
+    fn photon_288(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;   
     
-    fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+    fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
 
     fn photon_custom_inv(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
-
 }
 
 impl<F: Fancy> PhotonGadgets for F {
-    fn photon_100(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_100(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 5);
         state.PermutePHOTON(self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
         Ok(state.output_photon().unwrap())
     }
 
-    
-    fn photon_144(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_144(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 6);
         state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
         Ok(state.output_photon().unwrap())
     }
 
-    fn photon_196(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_196(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 7);
         state.PermutePHOTON(self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
         Ok(state.output_photon().unwrap())
     }
 
-    fn photon_256(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_256(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 8);
         state.PermutePHOTON(self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
         Ok(state.output_photon().unwrap())
     }
 
-    fn photon_288(&mut self, input: Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_288(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 6);
         state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_AES, &[2, 3, 1, 2, 1, 4])?;
         Ok(state.output_photon().unwrap())
     }
 
-    fn photon_custom(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
+    fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, d);
         let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
         state.PermutePHOTON(self, ics, sbox, Zi)?;
@@ -438,7 +436,7 @@ mod photon_test {
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 25]).unwrap();
-        let state = f.photon_100(init_state_enc).unwrap();
+        let state = f.photon_100(&init_state_enc).unwrap();
         // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
                                           3, 2, 0xc, 5, 7,
@@ -462,7 +460,7 @@ mod photon_test {
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 36]).unwrap();
         
-        let state = f.photon_144(init_state_enc).unwrap();
+        let state = f.photon_144(&init_state_enc).unwrap();
         let res_state_m: Vec<u16> = vec!(9, 0xe, 6, 0xe, 6, 8,
                                          5, 2, 3, 0xb, 2, 0xd,
                                          0xf, 2, 2, 4, 5, 0,
@@ -490,7 +488,7 @@ mod photon_test {
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
         
-        let state = f.photon_196(init_state_enc).unwrap();
+        let state = f.photon_196(&init_state_enc).unwrap();
         // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
                                          0xf, 0xd, 0xc, 6, 6, 9, 0xa,
@@ -519,7 +517,7 @@ mod photon_test {
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
 
-        let state = f.photon_196(init_state_enc).unwrap();
+        let state = f.photon_196(&init_state_enc).unwrap();
         // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(0xe, 0xd, 4, 0xe, 2, 9, 3,
                                          7, 6, 0xc, 8, 8, 0, 8,
@@ -549,7 +547,7 @@ mod photon_test {
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 64]).unwrap();
 
-        let state = f.photon_256(init_state_enc).unwrap();
+        let state = f.photon_256(&init_state_enc).unwrap();
         // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(1, 9, 8, 0, 0xc, 0xa, 7, 8,
                                          7, 0xc, 0xd, 0, 6, 0xf, 4, 9,
@@ -579,7 +577,7 @@ mod photon_test {
         let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
         let init_state_enc = f.encode_many(&init_state_m, &[x8_x4_x3_x_1; 36]).unwrap();
 
-        let state = f.photon_288(init_state_enc).unwrap();
+        let state = f.photon_288(&init_state_enc).unwrap();
         // println!("full: {}", res);
         let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
                                          0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
@@ -784,7 +782,7 @@ mod photon_test {
         fn fancy_photon100<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
             let Z: &[u16] = &[1, 2, 9, 9, 2];
             let ics = &[0, 1, 3, 6, 4];
-            let z = b.photon_100(*x).unwrap();
+            let z = b.photon_100(x).unwrap();
             b.outputs(&z).unwrap()
         }
 
@@ -817,7 +815,7 @@ mod photon_test {
         // Run dummy version.
         let mut dummy = Dummy::new();
         let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
-        let target_enc = dummy.photon_100(dummy_input).unwrap();
+        let target_enc = dummy.photon_100(&dummy_input).unwrap();
         let target = dummy.outputs(&target_enc).unwrap().unwrap();
         println!("trgt: {:?}", target);
 
@@ -828,7 +826,7 @@ mod photon_test {
             let mut gb =
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
-            let gb_o = gb.photon_100(xs).unwrap();
+            let gb_o = gb.photon_100(&xs).unwrap();
             gb.outputs(&gb_o);
         });
 
@@ -856,7 +854,7 @@ mod photon_test {
         // Run dummy version.
         let mut dummy = Dummy::new();
         let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
-        let target_enc = dummy.photon_196(dummy_input).unwrap();
+        let target_enc = dummy.photon_196(&dummy_input).unwrap();
         let target = dummy.outputs(&target_enc).unwrap().unwrap();
         println!("trgt: {:?}", target);
 
@@ -867,7 +865,7 @@ mod photon_test {
             let mut gb =
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
-            let gb_o = gb.photon_196(xs).unwrap();
+            let gb_o = gb.photon_196(&xs).unwrap();
             gb.outputs(&gb_o);
         });
 
@@ -895,7 +893,7 @@ mod photon_test {
         // Run dummy version.
         let mut dummy = Dummy::new();
         let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
-        let target_enc = dummy.photon_256(dummy_input).unwrap();
+        let target_enc = dummy.photon_256(&dummy_input).unwrap();
         let target = dummy.outputs(&target_enc).unwrap().unwrap();
         println!("trgt: {:?}", target);
 
@@ -906,7 +904,7 @@ mod photon_test {
             let mut gb =
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
-            let gb_o = gb.photon_256(xs).unwrap();
+            let gb_o = gb.photon_256(&xs).unwrap();
             gb.outputs(&gb_o);
         });
 
