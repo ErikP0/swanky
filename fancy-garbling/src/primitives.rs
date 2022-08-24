@@ -1,2 +1,2 @@
+pub mod photon_bin;
 pub mod photon;
-pub mod photon_GF;

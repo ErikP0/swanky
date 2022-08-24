@@ -1,619 +1,951 @@
-use crate::Fancy;
+// -*- mode: rust; -*-
+//
+// This file is part of `fancy-garbling`.
+// Copyright © 2022 COSIC 
+// Elias Wils & Robbe Vermeiren
+// See LICENSE for licensing information.
 
-const RC: [u8; 12] = [1, 3, 7, 14, 13, 11, 6, 12, 9, 2, 5, 10];
+use crate::{
+    fancy::{Fancy, HasModulus},
+    Modulus,
+};
+use itertools::Itertools;
 
-struct PhotonState<F: Fancy, const D: usize, const S: usize> {
-    state: Vec<Vec<Vec<F::Item>>>,
-    ic: [u8; D],
-    zi: [usize; D],
+const SBOX_PRE: &[u16] =  &[0xc, 0x5, 0x6, 0xb, 0x9, 0x0, 0xa, 0xd, 0x3, 0xe, 0xf, 0x8, 0x4, 0x7, 0x1, 0x2];
+const SBOX_PRE_INV: &[u16] = &[0x5, 0xe, 0xf, 0x8, 0xc, 0x1, 0x2, 0xd, 0xb, 0x4, 0x6, 0x3, 0x0, 0x7, 0x9, 0xa];
+const SBOX_AES: &[u16] =  &[0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
+                            0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
+                            0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
+                            0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
+                            0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84,
+                            0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf,
+                            0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8,
+                            0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2,
+                            0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73,
+                            0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb,
+                            0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
+                            0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08,
+                            0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a,
+                            0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
+                            0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
+                            0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16];
+const SBOX_AES_INV: &[u16] =  &[0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
+                            0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
+                                0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e,
+                                0x08, 0x2e, 0xa1, 0x66, 0x28, 0xd9, 0x24, 0xb2, 0x76, 0x5b, 0xa2, 0x49, 0x6d, 0x8b, 0xd1, 0x25,
+                                0x72, 0xf8, 0xf6, 0x64, 0x86, 0x68, 0x98, 0x16, 0xd4, 0xa4, 0x5c, 0xcc, 0x5d, 0x65, 0xb6, 0x92,
+                                0x6c, 0x70, 0x48, 0x50, 0xfd, 0xed, 0xb9, 0xda, 0x5e, 0x15, 0x46, 0x57, 0xa7, 0x8d, 0x9d, 0x84,
+                                0x90, 0xd8, 0xab, 0x00, 0x8c, 0xbc, 0xd3, 0x0a, 0xf7, 0xe4, 0x58, 0x05, 0xb8, 0xb3, 0x45, 0x06,
+                                0xd0, 0x2c, 0x1e, 0x8f, 0xca, 0x3f, 0x0f, 0x02, 0xc1, 0xaf, 0xbd, 0x03, 0x01, 0x13, 0x8a, 0x6b,
+                                0x3a, 0x91, 0x11, 0x41, 0x4f, 0x67, 0xdc, 0xea, 0x97, 0xf2, 0xcf, 0xce, 0xf0, 0xb4, 0xe6, 0x73,
+                                0x96, 0xac, 0x74, 0x22, 0xe7, 0xad, 0x35, 0x85, 0xe2, 0xf9, 0x37, 0xe8, 0x1c, 0x75, 0xdf, 0x6e,
+                                0x47, 0xf1, 0x1a, 0x71, 0x1d, 0x29, 0xc5, 0x89, 0x6f, 0xb7, 0x62, 0x0e, 0xaa, 0x18, 0xbe, 0x1b,
+                                0xfc, 0x56, 0x3e, 0x4b, 0xc6, 0xd2, 0x79, 0x20, 0x9a, 0xdb, 0xc0, 0xfe, 0x78, 0xcd, 0x5a, 0xf4,
+                                0x1f, 0xdd, 0xa8, 0x33, 0x88, 0x07, 0xc7, 0x31, 0xb1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xec, 0x5f,
+                                0x60, 0x51, 0x7f, 0xa9, 0x19, 0xb5, 0x4a, 0x0d, 0x2d, 0xe5, 0x7a, 0x9f, 0x93, 0xc9, 0x9c, 0xef,
+                                0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61,
+                                0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d];
+
+
+/// A collection of wires for the PHOTON permutation, useful for the garbled gadgets defined by `PhotonGadgets`.
+// [[W; D]; D] is =organized in row-major order
+#[derive(Clone, PartialEq)]
+struct PhotonState<F: Fancy> {
+    state_matrix: Vec<Vec<F::Item>>,
+    d: usize,
 }
 
-impl<F: Fancy, const D: usize, const S: usize> PhotonState<F, D, S> {
-    pub fn new(state: Vec<Vec<Vec<F::Item>>>, ic: [u8; D], zi: [usize; D]) -> Self {
-        Self::check_dim(&state);
-        Self {state, ic, zi}
-    }
-
-    fn check_dim(s: &Vec<Vec<Vec<F::Item>>>)  {
-        debug_assert_eq!(s.len(), D);
-        for i in 0..D {
-            debug_assert_eq!(s[i].len(), D);
-            for j in 0..D {
-                debug_assert_eq!(s[i][j].len(), S);
-            }
-        }
-    }
-
-    fn add_constant(&mut self, f: &mut F, r: usize) -> Result<(), F::Error> {
-        for i in 0..D {
-            let rc = RC[r] ^ self.ic[i];
-            for j in 0..S {
-                if ((rc >> j) & 0x1) > 0 {
-                    self.state[i][0][j] = f.negate(&self.state[i][0][j])?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn sub_cells(&mut self, f: &mut F) -> Result<(), F::Error> {
-        for x in 0..D {
-            for y in 0..D {
-                let cell = if S == 4 {
-                    present_sbox(f, &self.state[x][y])?
-                }else if S == 8 {
-                    aes_sbox(f, &self.state[x][y])?
-                }else{
-                    panic!("Bit-width {} not supported", S)
-                };
-                for (i,ci) in cell.into_iter().enumerate() {
-                    self.state[x][y][i] = ci;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn shift_rows(&mut self) {
-        let mut new_state = self.state.clone();
-        for x in 1..D {
-            for y in 0..D {
-                new_state[x][y] = self.state[x][(y+x) % D].clone();
-            }
-        }
-        self.state = new_state;
-    }
-
-    fn mix_columns_serial<C>(&mut self, f: &mut F, cmul: C) -> Result<(), F::Error>
-        where C : Fn(&mut F, usize, &[F::Item]) -> Result<[F::Item; S], F::Error>
+impl<F: Fancy> PhotonState<F> 
     {
-        for _ in 0..D {
-            let mut new_state = self.state.clone();
-            for x in 0..(D-1) {
-                new_state[x] = self.state[x+1].clone();
+    /// Create a new PhotonState matrix from an ordered element array.
+    pub fn new(w_vec: &Vec<F::Item>, d: usize) -> Self {
+        assert_eq!(w_vec.len(), d*d);
+        let mut ws: Vec<Vec<F::Item>> = Vec::with_capacity(d*d);
+        let mut row: Vec<F::Item>;
+
+        for r in 0..d {
+            row = Vec::with_capacity(d);
+            for c in 0..d {
+                row.push(w_vec[c*d+r].clone());
             }
-            for y in 0..D {
-                let mut res = cmul(f, self.zi[0], &self.state[0][y])?;
-                for k in 1..D {
-                    let to_add = cmul(f, self.zi[k], &self.state[k][y])?;
-                    for i in 0..S {
-                        res[i] = f.add(&res[i], &to_add[i])?;
-                    }
-                }
-                new_state[D-1][y] = res.into();
-            }
-            self.state = new_state;
+            ws.push(row);
         }
+
+        PhotonState{state_matrix: ws, d}
+    }
+    /// Create a new PhotonState 'matrix' from some wires.
+    pub fn from_matrix(ws: Vec<Vec<F::Item>>, d: usize) -> Self {
+        debug_assert_eq!(ws.len(), d);
+        debug_assert!(ws.iter().all(|c| c.len() == d));
+
+        PhotonState{state_matrix: ws, d}
+    }
+
+    /// Return the moduli of all the wires in the state matrix.
+    fn modulus(&self) -> Modulus {
+        let mod0 = self.state_matrix[0][0].modulus();
+        if !self.state_matrix.iter().all(|c| c.iter().all(|el| el.modulus() == mod0)) {
+            panic!("Not all elements in the state matrix have the same modulus!");
+        }
+        mod0
+    }
+    /// Return copy of `state_matrix`
+    fn state_matrix(&self) -> Vec<Vec<F::Item>> {
+        self.state_matrix.clone()
+    }
+
+    fn size(&self) -> usize {
+        self.modulus().size().into()
+    }
+
+    /// Get `d`, the dimension of the state matrix
+    fn dim(&self) -> usize {
+        self.state_matrix.len()
+    }
+
+    /// Extract a row of wires from the matrix, returning it.
+    fn extract(&mut self, row_index: usize) -> Vec<F::Item> {
+        self.state_matrix.remove(row_index)
+    }
+
+    /// Insert a row in the matrix at given `row_index`
+    fn insert(&mut self, row_index: usize, row: Vec<F::Item>) {
+        self.state_matrix.insert(row_index, row);
+    }
+
+    /// Access the underlying iterator over the rows
+    fn iter(&self) -> std::slice::Iter<Vec<F::Item>> {
+        self.state_matrix.iter()
+    }
+
+    /// Output the wires that make up a PhotonState.
+    pub fn output_photon(&self) -> Result<Vec<F::Item>, F::Error> {
+        let d = self.dim();
+
+        let mut outputs = Vec::with_capacity(d*d);
+
+        for c in 0..d {
+            for r in 0..d {
+                outputs.push(self.state_matrix[r][c].clone());
+            }
+        }
+    
+        Ok(outputs.into_iter().collect())
+    }
+    
+    /// 
+    fn PermutePHOTON (
+        &mut self,
+        f: &mut F,
+        ics: &[u16],
+        sbox: &'static [u16],
+        Z: &[u16],
+    ) -> Result<(), F::Error> {
+        const RCS: [u16; 12] = [1, 3, 7, 14, 13, 11, 6, 12,  9, 2, 5, 10];
+
+        let d = self.dim();
+        debug_assert_eq!(ics.len(), d);
+        debug_assert_eq!(sbox.len(), self.size());
+        debug_assert_eq!(Z.len(), d);
+
+        // let mut res_state = self.clone();
+        // println!("initial: {}", res_state);
+        for round in 0..12 {
+            self.AddConstants(f, RCS[round], ics)?;
+            // println!("addc: {}", res_state);
+
+            self.SubCells(f, sbox)?;
+            // println!("subc: {}", res_state);
+
+            self.ShiftRows()?;
+            // println!("shiftr: {}", res_state);
+
+            self.MixColumnsSerial(f, Z)?;
+            // println!("mixc: {}", res_state);
+        }
+
         Ok(())
     }
 
-    pub fn forward<C>(&mut self, f: &mut F, cmul: C) -> Result<(), F::Error>
-    where C : Fn(&mut F, usize, &[F::Item]) -> Result<[F::Item; S], F::Error> {
-        for r in 0..12 {
-            self.add_constant(f, r)?;
-            self.sub_cells(f)?;
-            self.shift_rows();
-            self.mix_columns_serial(f, &cmul)?;
+    fn PermutePHOTONInverse (
+        &mut self, 
+        f: &mut F,
+        ics: &[u16], 
+        sbox: &'static [u16], 
+        Z: &[u16]
+    ) -> Result<(), F::Error> {
+        const RCS: [u16; 12] = [10,5,2,9,12,6,11,13,14,7,3,1];
+        
+        let d = self.dim();
+        debug_assert_eq!(ics.len(), d);
+        debug_assert_eq!(sbox.len(), self.size());
+        debug_assert_eq!(Z.len(), d);
+
+        // let mut res_state = self.clone();
+        // println!("initial: {}", res_state);
+        for round in 0..12 {
+            self.MixColumnsSerialInv(f, Z)?;       // Input Z coefficients as in the forward permutation
+            // println!("mixc: {}", self);
+
+            self.ShiftRowsInv()?;
+            // println!("shiftr: {}", self);
+
+            self.SubCells(f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
+            // println!("subc: {}", self);
+
+            self.AddConstants(f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
+            // println!("addc: {}", self);
         }
+
+        Ok(())
+
+    }
+
+    fn AddConstants (
+        &mut self,
+        f: &mut F,
+        rc: u16,
+        ics: &[u16] //hardcode!
+    ) -> Result<(), F::Error> {
+        debug_assert_eq!(ics.len(), self.dim());
+        let w_ics = ics
+        .iter()
+        .map(|ic| f.constant(*ic, &self.modulus()).unwrap())
+        .collect_vec();
+        let w_rc = f.constant(rc, &self.modulus())?;
+        let d = self.dim();
+
+        let mut ic_add: F::Item;
+        for i in 0..d {
+            ic_add = f.add(&self.state_matrix[i][0], &w_ics[i])?;
+            self.state_matrix[i][0] = f.add(&ic_add, &w_rc)?;
+        }
+
         Ok(())
     }
 
-    pub fn into_wires(self) -> Vec<Vec<Vec<F::Item>>> {
-        self.state
-    }
-}
+    fn SubCells (
+        &mut self,
+        f: &mut F,
+        sbox: &'static [u16],
+    ) -> Result<(), F::Error> {
+        debug_assert_eq!(self.size(), sbox.len(), "Sbox has incorrect dimensions");
 
-fn present_sbox<F: Fancy>(f: &mut F, x: &[F::Item]) -> Result<Vec<F::Item>, F::Error> {
-    debug_assert_eq!(4, x.len());
-    let f0 = &x[1];
-    let f1 = &x[3];
-    let f2 = &x[0];
-    let f3 = &x[2];
-
-    let f3 = f.add(f3, f0)?;
-    let tmp = f.and(f0, &f3)?;
-    let f1 = f.add(f1, &tmp)?;
-    let f3 = f.add(&f3, &f1)?;
-    let f3 = f.negate(&f3)?;
-    let f2 = f.negate(&f2)?;
-    let tmp = f.and(&f1, &f3)?;
-    let f0 = f.add(&f0, &tmp)?;
-    let tmp = f.and(&f0, &f2)?;
-    let f1 = f.add(&f1, &tmp)?;
-    let f0 = f.add(&f0, &f2)?;
-    let f2 = f.add(&f2, &f3)?;
-    let f0 = f.add(&f0, &f1)?;
-    let tmp = f.and(&f0, &f1)?;
-    let f3 = f.add(&f3, &tmp)?;
-
-    Ok(vec!(f2, f1, f3, f0))
-}
-
-fn cmul_mod_x4_x_1<F: Fancy>(f: &mut F, c: usize, cell: &[F::Item]) -> Result<[F::Item; 4], F::Error> {
-    debug_assert_eq!(4, cell.len());
-    match c {
-        1 => Ok([cell[0].clone(), cell[1].clone(), cell[2].clone(), cell[3].clone()]),
-        2 => {
-            Ok([cell[3].clone(), f.add(&cell[0], &cell[3])?, cell[1].clone(), cell[2].clone()])
-        },
-        4 => {
-          Ok([cell[2].clone(), f.add(&cell[2], &cell[3])?, f.add(&cell[0], &cell[3])?, cell[1].clone()])
-        },
-        5 => {
-            let cell02 = f.add(&cell[0], &cell[2])?;
-            let cell13 = f.add(&cell[1], &cell[3])?;
-            let cell023 = f.add(&cell02, &cell[3])?;
-            Ok([cell02, f.add(&cell13, &cell[2])?, cell023, cell13])
-        },
-        6 => {
-            let cell23 = f.add(&cell[2], &cell[3])?;
-            let cell02 = f.add(&cell[0], &cell[2])?;
-            let cell13 = &f.add(&cell[1], &cell[3])?;
-            let cell12 = f.add(&cell[1], &cell[2])?;
-            Ok([cell23, cell02, f.add(&cell[0], &cell13)?, cell12])
-        },
-        8 => {
-          Ok([cell[1].clone(), f.add(&cell[1], &cell[2])?, f.add(&cell[2], &cell[3])?, f.add(&cell[0], &cell[3])?])
-        },
-        9 => {
-            Ok([f.add(&cell[0], &cell[1])?, cell[2].clone(), cell[3].clone(), cell[0].clone()])
-        },
-        11 => {
-            let cell02 = f.add(&cell[0], &cell[2])?;
-            let cell13 = f.add(&cell[1], &cell[3])?;
-            let cell023 = f.add(&cell02, &cell[3])?;
-            let cell013 = f.add(&cell13, &cell[0])?;
-            Ok([cell013, cell023, cell13, cell02])
+        let state_mod = self.modulus();
+        // let mut res_state = state.state_matrix().clone();
+        for row in self.state_matrix.iter_mut() {
+            for el in row.iter_mut() {
+                *el = f.proj(el, &state_mod, Some(sbox.to_vec())).unwrap();
+            }
         }
-        _ => panic!("cmul by {} not supported", c),
-    }
-}
 
-fn aes_sbox<F: Fancy>(f: &mut F, x: &[F::Item]) -> Result<Vec<F::Item>, F::Error> {
-    debug_assert_eq!(x.len(), 8);
-    const U: [[u8; 8]; 22] = [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 1, 1, 0],
-        [1, 0, 0, 0, 0, 1, 1, 1],
-        [1, 1, 1, 0, 0, 1, 1, 1],
-        [1, 0, 0, 0, 1, 1, 1, 0],
-        [1, 1, 0, 0, 0, 1, 1, 0],
-        [1, 1, 0, 1, 1, 0, 0, 1],
-        [1, 1, 1, 1, 0, 0, 1, 0],
-        [0, 0, 1, 0, 0, 0, 0, 1],
-        [0, 0, 0, 0, 1, 0, 0, 1],
-        [0, 1, 0, 1, 1, 1, 1, 1],
-        [0, 1, 1, 1, 0, 0, 1, 0],
-        [0, 1, 1, 0, 1, 0, 0, 1],
-        [0, 1, 0, 0, 0, 0, 0, 1],
-        [0, 0, 1, 0, 1, 0, 0, 0],
-        [0, 1, 0, 1, 1, 0, 0, 1],
-        [0, 1, 1, 1, 0, 1, 0, 0],
-        [0, 0, 1, 0, 1, 1, 0, 1],
-        [0, 1, 1, 1, 0, 1, 0, 1],
-        [0, 1, 1, 1, 1, 1, 1, 0],
-        [0, 1, 1, 1, 1, 0, 1, 1],
-        [0, 0, 1, 1, 0, 1, 0, 1],
-    ];
-    const B: [[u8; 18]; 8] = [
-        [0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
-        [1, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
-        [1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1],
-        [1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
-        [0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0],
-        [1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0],
-        [0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0],
-        [1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0]
-    ];
-    const N: [u8; 8] = [1, 1, 0, 0, 0, 1, 1, 0];
-    fn mat_mul<F: Fancy, const D1: usize, const D2: usize>(f: &mut F, m : &[[u8; D1]; D2], x: &[F::Item]) -> Result<Vec<F::Item>, F::Error> {
-        let mut res = Vec::with_capacity(x.len());
-        for mi in m {
-            let mut resi = None;
-            for (j,mij) in mi.iter().enumerate() {
-                if *mij > 0 {
-                    resi = match resi {
-                        Some(r) => Some(f.add(&r, &x[j])?),
-                        None => Some(x[j].clone())
-                    }
+        Ok(())
+
+    }
+
+
+    fn ShiftRows(
+        &mut self, 
+    ) -> Result<(), F::Error> { 
+            let d = self.dim();
+            let mut tmp: Vec<F::Item> = Vec::with_capacity(d);
+            for i in 1..d {
+                for j in 0..d {
+                    tmp.push(self.state_matrix[i][j].clone());
                 }
+                for j in 0..d { 
+                    self.state_matrix[i][j] = tmp[(j+i)%d].clone();
+                }
+                tmp.clear();
             }
-            res.push(resi.expect("Matrix row didn't contain a one"));
-        }
-        Ok(res)
+            Ok(())
     }
 
-    let y = mat_mul(f, &U, &x)?;
-    let t2 = f.and(&y[12], &y[15])?;
-    let t3 = f.and(&y[3], &y[6])?;
-    let t4 = f.add(&t2, &t3)?;
-    let t5 = f.and(&y[4], &y[0])?;
-    let t6 = f.add(&t2, &t5)?;
-    let t7 = f.and(&y[13], &y[16])?;
-    let t8 = f.and(&y[5], &y[1])?;
-    let t9 = f.add(&t7, &t8)?;
-    let t10 = f.and(&y[2], &y[7])?;
-    let t11 = f.add(&t7, &t10)?;
-    let t12 = f.and(&y[9], &y[11])?;
-    let t13 = f.and(&y[14], &y[17])?;
-    let t14 = f.add(&t12, &t13)?;
-    let t15 = f.and(&y[8], &y[10])?;
-    let t16 = f.add(&t12, &t15)?;
-    let t17 = f.add(&t4, &t14)?;
-    let t18 = f.add(&t6, &t16)?;
-    let t19 = f.add(&t9, &t14)?;
-    let t20 = f.add(&t11, &t16)?;
-    let t21 = f.add(&t17, &y[20])?;
-    let t22 = f.add(&t18, &y[19])?;
-    let t23 = f.add(&t19, &y[21])?;
-    let t24 = f.add(&t20, &y[18])?;
-    let t25 = f.add(&t21, &t22)?;
-    let t26 = f.and(&t21, &t23)?;
-    let t27 = f.add(&t24, &t26)?;
-    let t28 = f.and(&t25, &t27)?;
-    let t29 = f.add(&t28, &t22)?;
-    let t30 = f.add(&t23, &t24)?;
-    let t31 = f.add(&t22, &t26)?;
-    let t32 = f.and(&t31, &t30)?;
-    let t33 = f.add(&t32, &t24)?;
-    let t34 = f.add(&t23, &t33)?;
-    let t35 = f.add(&t27, &t33)?;
-    let t36 = f.and(&t24, &t35)?;
-    let t37 = f.add(&t36, &t34)?;
-    let t38 = f.add(&t27, &t36)?;
-    let t39 = f.and(&t29, &t38)?;
-    let t40 = f.add(&t25, &t39)?;
-    let t41 = f.add(&t40, &t37)?;
-    let t42 = f.add(&t29, &t33)?;
-    let t43 = f.add(&t29, &t40)?;
-    let t44 = f.add(&t33, &t37)?;
-    let t45 = f.add(&t42, &t41)?;
-    let z0 = f.and(&t44, &y[15])?;
-    let z1 = f.and(&t37, &y[6])?;
-    let z2 = f.and(&t33, &y[0])?;
-    let z3 = f.and(&t43, &y[16])?;
-    let z4 = f.and(&t40, &y[1])?;
-    let z5 = f.and(&t29, &y[7])?;
-    let z6 = f.and(&t42, &y[11])?;
-    let z7 = f.and(&t45, &y[17])?;
-    let z8 = f.and(&t41, &y[10])?;
-    let z9 = f.and(&t44, &y[12])?;
-    let z10 = f.and(&t37, &y[3])?;
-    let z11 = f.and(&t33, &y[4])?;
-    let z12 = f.and(&t43, &y[13])?;
-    let z13 = f.and(&t40, &y[5])?;
-    let z14 = f.and(&t29, &y[2])?;
-    let z15 = f.and(&t42, &y[9])?;
-    let z16 = f.and(&t45, &y[14])?;
-    let z17 = f.and(&t41, &y[8])?;
-    let z = [z0, z1, z2, z3, z4, z5, z6, z7, z8, z9, z10, z11, z12, z13, z14, z15, z16, z17];
-    let s = mat_mul(f, &B, &z)?;
-    s.into_iter().rev().zip(&N)
-        .map(|(si, ni)| {
-            if *ni == 0 {
-                Ok(si)
-            }else{
-                f.negate(&si)
+    fn ShiftRowsInv(
+        &mut self, 
+    ) -> Result<(), F::Error> { 
+            let d = self.dim();
+            let mut tmp: Vec<F::Item> = Vec::with_capacity(d);
+            for i in 1..d {
+                for j in 0..d {
+                    tmp.push(self.state_matrix[i][j].clone());
+                }
+                for j in 0..d { 
+                    self.state_matrix[i][j] = tmp[(j+d-i)%d].clone();
+                }
+                tmp.clear();
             }
-        })
-        .collect()
-}
+            Ok(())
+    }
 
-fn cmul_mod_x8_x4_x3_x_1<F: Fancy>(f: &mut F, c: usize, cell: &[F::Item]) -> Result<[F::Item; 8], F::Error> {
-    match c {
-        1 => Ok([cell[0].clone(), cell[1].clone(), cell[2].clone(), cell[3].clone(), cell[4].clone(), cell[5].clone(), cell[6].clone(), cell[7].clone()]),
-        2 => {
-            let cell37 = f.add(&cell[3], &cell[7])?;
-            let cell27 = f.add(&cell[2], &cell[7])?;
-            let cell07 = f.add(&cell[0], &cell[7])?;
-            Ok([cell[7].clone(), cell07, cell[1].clone(), cell27, cell37, cell[4].clone(), cell[5].clone(), cell[6].clone()])
-        },
-        3 => {
-            let cell67 = f.add(&cell[6], &cell[7])?;
-            let cell56 = f.add(&cell[5], &cell[6])?;
-            let cell45 = f.add(&cell[4], &cell[5])?;
-            let cell37 = f.add(&cell[3], &cell[7])?;
-            let cell347 = f.add(&cell37, &cell[4])?;
-            let cell237 = f.add(&cell[2], &cell37)?;
-            let cell12 = f.add(&cell[1], &cell[2])?;
-            let cell07 = f.add(&cell[0], &cell[7])?;
-            let cell017 = f.add(&cell07, &cell[1])?;
-            Ok([cell07, cell017, cell12, cell237, cell347, cell45, cell56, cell67])
-        },
-        4 => {
-            let cell37 = f.add(&cell[3], &cell[7])?;
-            let cell67 = f.add(&cell[6], &cell[7])?;
-            let cell267 = f.add(&cell[2], &cell67)?;
-            let cell16 = f.add(&cell[1], &cell[6])?;
-            let cell07 = f.add(&cell[0], &cell[7])?;
-            Ok([cell[6].clone(), cell67, cell07, cell16, cell267, cell37, cell[4].clone(), cell[5].clone()])
+    fn MixColumnsSerial(
+        &mut self, 
+        f: &mut F,
+        Z: &[u16],
+    ) -> Result<(), F::Error> {
+        let d = self.dim();
+        
+        let mut last_row: Vec<F::Item> = Vec::with_capacity(d);
+
+        let mut el: F::Item;
+        for _ in 0..d {
+            for i in 0..d {
+                let mut sum = f.cmul(&self.state_matrix[0][i], Z[0]).unwrap();
+                for j in 1..d{
+                    if Z[j]!=1 {
+                        el = f.cmul(&self.state_matrix[j][i],Z[j]).unwrap();
+                    } else {
+                        el = self.state_matrix[j][i].clone();
+                    }
+                sum = f.add(&sum, &el).unwrap();
+                }
+                last_row.push(sum);
+            }
+            self.extract(0);
+            self.insert(0, last_row.clone());
+            self.state_matrix.rotate_left(1);
+            last_row.clear();
         }
-        _ => panic!("cmul by {} not supported", c),
+
+        Ok(())
+    }
+    fn MixColumnsSerialInv(
+        &mut self,
+        f: &mut F,
+        Z: &[u16]
+    ) -> Result<(),F::Error> {
+        let Zrev: Vec<u16> = Z.to_vec().into_iter().rev().collect_vec();
+        
+
+        let d = self.dim();
+        
+        let mut first_row: Vec<F::Item> = Vec::with_capacity(d);
+
+        let mut el: F::Item;
+        for _ in 0..d {
+            for i in 0..d {
+                let mut sum = f.cmul(&self.state_matrix[0][i], Zrev[0]).unwrap();
+                for j in 1..d{
+                    if Z[j]!=1 {
+                        el = f.cmul(&self.state_matrix[j][i],Zrev[j]).unwrap();
+                    } else {
+                        el = self.state_matrix[j][i].clone();
+                    }
+                sum = f.add(&sum, &el).unwrap();
+                }
+                first_row.push(sum);
+            }
+            self.extract(d-1);
+            self.insert(d-1, first_row.clone());
+            self.state_matrix.rotate_right(1);
+            first_row.clear();
+        }
+
+
+        Ok(())
     }
 }
 
-pub trait PhotonFancyExt : Fancy
-{
-    fn photon_100(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error>;
-
-    fn photon_144(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error>;
-
-    fn photon_196(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error>;
-
-    fn photon_256(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error>;
-
-    fn photon_288(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error>;
-}
-
-impl<F: Fancy> PhotonFancyExt for F {
-    fn photon_100(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error> {
-        let mut state = PhotonState::new(input, [0,1,3,6,4], [1,2,9,9,2]);
-        state.forward(self, cmul_mod_x4_x_1)?;
-        Ok(state.into_wires())
-    }
-
-    fn photon_144(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error> {
-        let mut state = PhotonState::new(input, [0,1,3,7,6,4], [1,2,8,5,8,2]);
-        state.forward(self, cmul_mod_x4_x_1)?;
-        Ok(state.into_wires())
-    }
-
-    fn photon_196(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error> {
-        let mut state = PhotonState::new(input, [0,1,2,5,3,6,4], [1,4,6,1,1,6,4]);
-        state.forward(self, cmul_mod_x4_x_1)?;
-        Ok(state.into_wires())
-    }
-
-    fn photon_256(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error> {
-        let mut state = PhotonState::new(input, [0,1,3,7,15,14,12,8], [2,4,2,11,2,8,5,6]);
-        state.forward(self, cmul_mod_x4_x_1)?;
-        Ok(state.into_wires())
-    }
-
-    fn photon_288(&mut self, input: Vec<Vec<Vec<Self::Item>>>) -> Result<Vec<Vec<Vec<Self::Item>>>, Self::Error> {
-        let mut state = PhotonState::new(input, [0,1,3,7,6,4], [2,3,1,2,1,4]);
-        state.forward(self, cmul_mod_x8_x4_x3_x_1)?;
-        Ok(state.into_wires())
+impl<F: Fancy> std::fmt::Display for PhotonState<F>
+    where F::Item: std::fmt::Display {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(fmt, "Modulus state: {} \n", self.modulus()).unwrap();
+        for row in self.state_matrix() {
+            for el in row.iter() {
+                write!(fmt, "{} ", el).unwrap();
+            }
+            write!(fmt, "\n").unwrap();
+        }
+        Ok(())
     }
 }
+
+/// Extension trait for Fancy which provides Photon constructions
+pub trait PhotonGadgets: Fancy {
+    fn photon_100(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_144(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_196(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_256(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn photon_288(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error>;   
+    
+    fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+
+    fn photon_custom_inv(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+}
+
+impl<F: Fancy> PhotonGadgets for F {
+    fn photon_100(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, 5);
+        state.PermutePHOTON(self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_144(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, 6);
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_196(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, 7);
+        state.PermutePHOTON(self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_256(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, 8);
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_288(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, 6);
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_AES, &[2, 3, 1, 2, 1, 4])?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, d);
+        let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
+        state.PermutePHOTON(self, ics, sbox, Zi)?;
+        Ok(state.output_photon().unwrap())
+    }
+
+    fn photon_custom_inv(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
+        let mut state: PhotonState<F> = PhotonState::new(input, d);
+        let sbox = if in_GF4 {SBOX_PRE_INV} else {SBOX_AES_INV};
+        state.PermutePHOTONInverse(self, ics, sbox, Zi)?;
+        Ok(state.output_photon().unwrap())
+    }
+
+}
+
 
 #[cfg(test)]
-mod tests {
-    use crate::{Fancy, Modulus};
-    use crate::circuit::{CircuitBuilder, CircuitRef};
-    use crate::classic::garble;
-    use crate::primitives::photon::{aes_sbox, cmul_mod_x4_x_1, cmul_mod_x8_x4_x3_x_1, present_sbox};
-    use super::PhotonFancyExt;
+mod photon_test {
+    use ocelot::ot::{ChouOrlandiReceiver, ChouOrlandiSender};
+    use rand::Rng;
+    use scuttlebutt::{UnixChannel, AesRng, unix_channel_pair};
 
-    fn fill_nbit<F, T, const D: usize>(bytes: &[u8], f: &mut F, n :usize) -> Vec<Vec<Vec<T>>>
-    where F: FnMut(u8) -> T {
-        assert_eq!(bytes.len(), D*D);
-        let mut v = Vec::with_capacity(D);
-        let mut cnt = 0;
-        for _ in 0..D {
-            let mut row = Vec::with_capacity(D);
-            for _ in 0..D {
-                let x = bytes[cnt];
-                cnt += 1;
-                let cell: Vec<_> = (0..n).map(|i| f((x >> i) & 0x1))
-                    .collect();
-                row.push(cell);
-            }
-            v.push(row);
-        }
-        return v;
+    use super::*;
+    use crate::{
+        fancy::FancyInput,
+        dummy::{Dummy, DummyVal}, circuit::CircuitBuilder, 
+        Wire, Evaluator, Garbler, util::RngExt, twopac,
+    };
+    #[test]
+    fn photon80_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 4,
+                                          0, 0, 0, 0, 1,
+                                          0, 0 ,0, 0, 4,
+                                          0, 0 ,0, 0, 1,
+                                          0, 0 ,0, 1, 0);
+        // let Z: &[u16] = &[1, 2, 9, 9, 2];
+        // let ics = &[0, 1, 3, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 25]).unwrap();
+        let state = f.photon_100(&init_state_enc).unwrap();
+        // println!("full: {}", res);
+        let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
+                                          3, 2, 0xc, 5, 7,
+                                          0xd, 9, 4, 0xc, 7,
+                                          5, 0xb, 8, 0xe, 0,
+                                          0xf, 9, 1, 7, 0xc);
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
     }
 
     #[test]
-    fn test_present_sbox() {
-        const PRESENT_SBOX: [u16; 16] = [0xc, 0x5, 0x6, 0xb, 0x9, 0x0, 0xa, 0xd, 0x3, 0xe, 0xf, 0x8, 0x4, 0x7, 0x1, 0x2];
-        let circuit = {
+    fn photon128_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 0, 2,
+                                          0, 0, 0, 0, 0, 0,
+                                          0, 0 ,0, 0, 0, 1,
+                                          0, 0 ,0, 0, 0, 0,
+                                          0, 0 ,0, 0, 0, 1,
+                                          0, 0, 0, 0, 0, 0);
+        // let Z: &[u16] = &[1, 2, 8, 5, 8, 2];
+        // let ics = &[0, 1, 3, 7, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 36]).unwrap();
+        
+        let state = f.photon_144(&init_state_enc).unwrap();
+        let res_state_m: Vec<u16> = vec!(9, 0xe, 6, 0xe, 6, 8,
+                                         5, 2, 3, 0xb, 2, 0xd,
+                                         0xf, 2, 2, 4, 5, 0,
+                                         0xc, 0xa, 0xd, 0xe, 9, 3,
+                                         3, 2, 6, 0, 2, 2,
+                                         0xc, 0xa, 0xf, 0xb, 0xd, 9);
+
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
+
+    }
+
+
+    #[test]
+    fn photon160_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0,
+                                          0, 0, 0, 0, 0, 0, 2,
+                                          0, 0 ,0, 0, 0, 0, 8,
+                                          0, 0 ,0, 0, 0, 0, 2,
+                                          0, 0 ,0, 0, 0, 0, 4,
+                                          0, 0, 0, 0, 0, 0, 2,
+                                          0, 0, 0, 0, 0, 0, 4);
+        // let Z = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
+        
+        let state = f.photon_196(&init_state_enc).unwrap();
+        // println!("full: {}", res);
+        let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
+                                         0xf, 0xd, 0xc, 6, 6, 9, 0xa,
+                                         0, 0, 0xf, 6, 4, 0, 9,
+                                         0xd, 0xa, 5, 0xe, 4, 2, 0xd,
+                                         4, 3, 0xb, 0, 0xc, 0, 0xe,
+                                         0xa, 1, 6, 0xc, 0xe, 0xf, 7,
+                                         1, 0xd, 9, 8, 0xe, 4, 4);
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
+
+    }
+
+
+    #[test]
+    fn photon192_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 3,
+                                0, 0 ,0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0, 4,
+                                0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 4);
+        // let Z = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
+
+        let state = f.photon_196(&init_state_enc).unwrap();
+        // println!("full: {}", res);
+        let res_state_m: Vec<u16> = vec!(0xe, 0xd, 4, 0xe, 2, 9, 3,
+                                         7, 6, 0xc, 8, 8, 0, 8,
+                                         0xa, 7, 1, 1, 0xf, 7, 3,
+                                         0xc, 6, 0xd, 9, 0xb, 0xc, 0xa,
+                                         8, 3, 0xc, 1, 5, 0xc, 1,
+                                         0xd, 3, 6, 2, 7, 9, 1,
+                                         0xf, 0xb, 0xb, 4, 1, 0xb, 7);
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
+
+    }
+
+
+    #[test]
+    fn photon224_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0, 0,
+                                          0, 0, 0, 0, 0, 0, 0, 0,
+                                          0, 0 ,0, 0, 0, 0, 0, 3,
+                                          0, 0 ,0, 0, 0, 0, 0, 8,
+                                          0, 0 ,0, 0, 0, 0, 0, 2,
+                                          0, 0, 0, 0, 0, 0, 0, 0,
+                                          0, 0, 0, 0, 0, 0, 0, 2,
+                                          0, 0, 0, 0, 0, 0, 0, 0);
+        // let Z = &[2, 4, 2, 11, 2, 8, 5, 6];
+        // let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 64]).unwrap();
+
+        let state = f.photon_256(&init_state_enc).unwrap();
+        // println!("full: {}", res);
+        let res_state_m: Vec<u16> = vec!(1, 9, 8, 0, 0xc, 0xa, 7, 8,
+                                         7, 0xc, 0xd, 0, 6, 0xf, 4, 9,
+                                         3, 0xf, 3, 0xe, 2, 4, 8, 1,
+                                         0, 2, 0xd, 2, 9, 1, 3, 6,
+                                         4, 6, 9, 7, 0xb, 0xf, 0xf, 0xb,
+                                         2, 0xe, 0xc, 0xb, 3, 1, 0xc, 8,
+                                         4, 1, 0xf, 0xd, 0xd, 0xc, 0xc, 2,
+                                         2, 0, 9, 0xc, 1, 0xb, 0, 0xc);
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
+
+    }
+
+
+    #[test]
+    fn photon256_du() {
+        let init_state_m = vec!(0, 0 ,0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0x40,
+                                0, 0 ,0, 0, 0, 0x20,
+                                0, 0, 0, 0, 0, 0x20);
+        
+        // let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        // let ics = &[0, 1, 3, 7, 6, 4];
+        let mut f = Dummy::new();
+        let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
+        let init_state_enc = f.encode_many(&init_state_m, &[x8_x4_x3_x_1; 36]).unwrap();
+
+        let state = f.photon_288(&init_state_enc).unwrap();
+        // println!("full: {}", res);
+        let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
+                                         0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
+                                         0x90, 0x5C, 0x66, 0xC8, 0xC0, 0x62, 
+                                         0x36, 0x38, 0x08, 0x8B, 0x69, 0x9C, 
+                                         0x1C, 0xA9, 0xCF, 0x93, 0x25, 0xAE, 
+                                         0xB5, 0xC9, 0x52, 0x16, 0xF7, 0x79); 
+        assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
+
+    }
+
+    // Builds photon circuit with circuitbuilder and evaluate it 
+    // with the eval_plain function
+    #[test]
+    fn circuit_photon80() {
+        // let Z: &[u16] = &[1, 2, 9, 9, 2];
+        // let ics = &[0, 1, 3, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 5;
+
+        // Build circuit
+        let circ = {
             let mut b = CircuitBuilder::new();
-            let inputs = b.garbler_inputs(&[Modulus::Zq {q:2}, Modulus::Zq {q:2}, Modulus::Zq {q:2}, Modulus::Zq {q:2}]);
-            let outputs = present_sbox(&mut b, &inputs).unwrap();
-            assert_eq!(b.outputs(&outputs).unwrap(), None);
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_100(&x_vec).unwrap();
+            b.outputs(&z);
             b.finish()
         };
-        let (enc, gc) = garble(&circuit).unwrap();
-        for (x,y) in PRESENT_SBOX.iter().enumerate() {
-            let x = x as u16;
-            let inputs = enc.encode_garbler_inputs(&[x & 0x1, (x >> 1) & 0x1, (x >> 2) & 0x1, (x >> 3) & 0x1]);
-            let outputs = gc.eval(&circuit, &inputs, &[]).unwrap();
-            assert_eq!(&outputs, &[y & 0x1, (y >> 1) & 0x1, (y >> 2) & 0x1, (y >> 3) & 0x1]);
-        }
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input =    &[0, 0 ,0, 0, 4,
+                                0, 0, 0, 0, 1,
+                                0, 0 ,0, 0, 4,
+                                0, 0 ,0, 0, 1,
+                                0, 0 ,0, 1, 0];
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
+                                        3, 2, 0xc, 5, 7,
+                                        0xd, 9, 4, 0xc, 7,
+                                        5, 0xb, 8, 0xe, 0,
+                                        0xf, 9, 1, 7, 0xc);
+        
+        assert_eq!(res,res_state_m);
     }
 
     #[test]
-    fn test_cmul_mod_x4_x_1() {
-        const CMUL_1: [u16; 16] = [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf];
-        const CMUL_2: [u16; 16] = [0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x3, 0x1, 0x7, 0x5, 0xb, 0x9, 0xf, 0xd];
-        const CMUL_4: [u16; 16] = [0x0, 0x4, 0x8, 0xc, 0x3, 0x7, 0xb, 0xf, 0x6, 0x2, 0xe, 0xa, 0x5, 0x1, 0xd, 0x9];
-        const CMUL_5: [u16; 16] = [0x0, 0x5, 0xa, 0xf, 0x7, 0x2, 0xd, 0x8, 0xe, 0xb, 0x4, 0x1, 0x9, 0xc, 0x3, 0x6];
-        const CMUL_6: [u16; 16] = [0x0, 0x6, 0xc, 0xa, 0xb, 0xd, 0x7, 0x1, 0x5, 0x3, 0x9, 0xf, 0xe, 0x8, 0x2, 0x4];
-        const CMUL_8: [u16; 16] = [0x0, 0x8, 0x3, 0xb, 0x6, 0xe, 0x5, 0xd, 0xc, 0x4, 0xf, 0x7, 0xa, 0x2, 0x9, 0x1];
-        const CMUL_9: [u16; 16] = [0x0, 0x9, 0x1, 0x8, 0x2, 0xb, 0x3, 0xa, 0x4, 0xd, 0x5, 0xc, 0x6, 0xf, 0x7, 0xe];
-        const CMUL_11: [u16; 16] = [0x0, 0xb, 0x5, 0xe, 0xa, 0x1, 0xf, 0x4, 0x7, 0xc, 0x2, 0x9, 0xd, 0x6, 0x8, 0x3];
+    fn circuit_photon160() {
+        // let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 7;
 
-        fn test_cmul(c: usize, expected: &[u16; 16]) {
-            let circuit = {
-                let mut b = CircuitBuilder::new();
-                let inputs = b.garbler_inputs(&[Modulus::Zq {q:2}, Modulus::Zq {q:2}, Modulus::Zq {q:2}, Modulus::Zq {q:2}]);
-                let outputs = cmul_mod_x4_x_1(&mut b, c, &inputs).unwrap();
-                assert_eq!(b.outputs(&outputs).unwrap(), None);
-                b.finish()
-            };
-            let (enc, gc) = garble(&circuit).unwrap();
-            for (x,y) in expected.iter().enumerate() {
-                let x = x as u16;
-                let inputs = enc.encode_garbler_inputs(&[x & 0x1, (x >> 1) & 0x1, (x >> 2) & 0x1, (x >> 3) & 0x1]);
-                let outputs = gc.eval(&circuit, &inputs, &[]).unwrap();
-                assert_eq!(&outputs, &[y & 0x1, (y >> 1) & 0x1, (y >> 2) & 0x1, (y >> 3) & 0x1]);
-            }
-        }
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let z = b.photon_196(&x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
 
-        test_cmul(1, &CMUL_1);
-        test_cmul(2, &CMUL_2);
-        test_cmul(4, &CMUL_4);
-        test_cmul(5, &CMUL_5);
-        test_cmul(6, &CMUL_6);
-        test_cmul(8, &CMUL_8);
-        test_cmul(9, &CMUL_9);
-        test_cmul(11, &CMUL_11);
+        // Evaluate with test vector 
+        let garbler_input =    &[0, 0 ,0, 0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0, 2,
+                                0, 0 ,0, 0, 0, 0, 8,
+                                0, 0 ,0, 0, 0, 0, 2,
+                                0, 0 ,0, 0, 0, 0, 4,
+                                0, 0, 0, 0, 0, 0, 2,
+                                0, 0, 0, 0, 0, 0, 4];
 
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(1, 0xd, 0xe, 0xb, 0xf, 0xe, 3,
+                                         0xf, 0xd, 0xc, 6, 6, 9, 0xa,
+                                         0, 0, 0xf, 6, 4, 0, 9,
+                                         0xd, 0xa, 5, 0xe, 4, 2, 0xd,
+                                         4, 3, 0xb, 0, 0xc, 0, 0xe,
+                                         0xa, 1, 6, 0xc, 0xe, 0xf, 7,
+                                         1, 0xd, 9, 8, 0xe, 4, 4);
+        
+        assert_eq!(res,res_state_m);
     }
 
-    fn test_photon_nbit<const D: usize, P>(photon: &mut P, input: &[u8], expected_output: &[u8], n: usize)
-    where P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Vec<Vec<CircuitRef>>>, <CircuitBuilder as Fancy>::Error> {
-        let mut b = CircuitBuilder::new();
-        let input_wires = fill_nbit::<_, _, D>(input, &mut |i| b.constant(i as u16, &Modulus::Zq {q: 2}).unwrap(), n);
-        let output_wires: Vec<_> = photon(&mut b, input_wires).unwrap()
-            .into_iter()
-            .flatten()
-            .flatten()
-            .collect();
-        assert_eq!(None, b.outputs(&output_wires).unwrap());
-        let circuit = b.finish();
-        let (_, gc) = garble(&circuit).unwrap();
-        let output = gc.eval(&circuit, &[], &[]).unwrap();
-        let output_u8: Vec<_> = output.into_iter().map(|i| {
-            assert!(i < 2);
-            i as u8
+    #[test]
+    fn circuit_photon256() {
+        // let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        // let ics = &[0, 1, 3, 7, 6, 4];
+        let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
+        const D: usize = 6;
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x8_x4_x3_x_1; D*D]); 
+            let z = b.photon_288(&x_vec).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
+
+        // Evaluate with test vector 
+        let garbler_input =    &[0, 0 ,0, 0, 0, 0,
+                                0, 0, 0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0,
+                                0, 0 ,0, 0, 0, 0x40,
+                                0, 0 ,0, 0, 0, 0x20,
+                                0, 0, 0, 0, 0, 0x20];
+
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        let res_state_m: Vec<u16> = vec!(0x4D, 0xE0, 0xE9, 0xCB, 0xE8, 0x18, 
+                                        0xBD, 0x9E, 0xD5, 0x6B, 0xC2, 0xCC, 
+                                        0x90, 0x5C, 0x66, 0xC8, 0xC0, 0x62, 
+                                        0x36, 0x38, 0x08, 0x8B, 0x69, 0x9C, 
+                                        0x1C, 0xA9, 0xCF, 0x93, 0x25, 0xAE, 
+                                        0xB5, 0xC9, 0x52, 0x16, 0xF7, 0x79); 
+        
+        assert_eq!(res,res_state_m);
+    }
+
+
+    #[test]
+    fn forward_backward_permutation_80() {
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 5; 
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let xx = b.photon_100(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
+            b.outputs(&z);
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input =    &[0, 0 ,0, 0, 4,
+                                0, 0, 0, 0, 1,
+                                0, 0 ,0, 0, 4,
+                                0, 0 ,0, 0, 1,
+                                0, 0 ,0, 1, 0];
+        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn backward_80() {
+        let init_state: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
+            3, 2, 0xc, 5, 7,
+            0xd, 9, 4, 0xc, 7,
+            5, 0xb, 8, 0xe, 0,
+            0xf, 9, 1, 7, 0xc);
+        
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state, &[x4_x_1; 25]).unwrap();
+        let state = f.photon_custom_inv(&init_state_enc,5,ics,Z,true).unwrap();
+        // println!("full: {}", res);
+        let res_state = vec!(0, 0 ,0, 0, 4,
+            0, 0, 0, 0, 1,
+            0, 0 ,0, 0, 4,
+            0, 0 ,0, 0, 1,
+            0, 0 ,0, 1, 0);
+  
+        assert_eq!(res_state, state.into_iter().map(|w| w.val()).collect_vec());
+    }
+
+
+/// ---------- garble.rs tests --------------------
+
+    // helper - checks that Streaming evaluation of a fancy function equals Dummy
+    // evaluation of the same function
+    fn streaming_test_GF4<FGB, FEV, FDU>(
+        mut f_gb: FGB,
+        mut f_ev: FEV,
+        mut f_du: FDU,
+        input_mod: &Modulus,
+        d: usize,
+    ) where
+        FGB: FnMut(&mut Garbler<UnixChannel, AesRng>, &Vec<Wire>) -> Option<Vec<u16>> + Send + Sync,
+        FEV: FnMut(&mut Evaluator<UnixChannel>, &Vec<Wire>) -> Option<Vec<u16>>,
+        FDU: FnMut(&mut Dummy, &Vec<DummyVal>) -> Option<Vec<u16>>,
+    {
+        let mut rng = AesRng::new();
+        let inputs = (0..d*d).map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+
+        // evaluate f_gb as a dummy
+        let mut dummy = Dummy::new();
+        let dinp = dummy.encode_many(&inputs, &vec![*input_mod; d*d]).unwrap();
+        let should_be = f_du(&mut dummy, &dinp).unwrap();
+        println!("inp: {:?} -> {:?}", inputs, should_be);
+
+        let (sender, receiver) = unix_channel_pair();
+
+        crossbeam::scope(|s| {
+            s.spawn(move |_| {
+                let mut gb = Garbler::new(sender, rng);
+                let (gb_inp, ev_inp) = gb.encode_many_wires(&inputs, &vec![*input_mod; d*d]).unwrap();
+                ev_inp.iter().for_each(|w| gb.send_wire(&w).unwrap());
+                f_gb(&mut gb, &gb_inp);
+            });
+
+            let mut ev = Evaluator::new(receiver);
+            let ev_inp = (0..d*d)
+                .map(|_| ev.read_wire(input_mod).unwrap())
+                .collect_vec();
+            let result = f_ev(&mut ev, &ev_inp).unwrap();
+
+            assert_eq!(result, should_be)
         })
-            .collect();
-        let expected_output: Vec<_> = fill_nbit::<_,_,D>(expected_output, &mut |i| i, n)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .collect();
-        assert_eq!(expected_output, output_u8);
+        .unwrap();
     }
 
     #[test]
-    fn test_photon_100() {
-        const INPUT: [u8; 25] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
-        const OUTPUT: [u8; 25] = [0x3,0x3,0xd,0x5,0xf,0x6,0x2,0x9,0xb,0x9,0x5,0xc,0x4,0x8,0x1,0x6,0x5,0xc,0xe,0x7,0xb,0x7,0x7,0x0,0xc];
-        test_photon_nbit::<5, _>(&mut CircuitBuilder::photon_100, &INPUT, &OUTPUT, 4);
-    }
+    fn photon100() {
+        fn fancy_photon100<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
+            // let Z: &[u16] = &[1, 2, 9, 9, 2];
+            // let ics = &[0, 1, 3, 6, 4];
+            let z = b.photon_100(x).unwrap();
+            b.outputs(&z).unwrap()
+        }
 
-    #[test]
-    fn test_photon_144() {
-        const INPUT: [u8; 36] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,1,0];
-        const OUTPUT: [u8; 36] = [0x9,0x5,0xf,0xc,0x3,0xc,0xe,0x2,0x2,0xa,0x2,0xa,0x6,0x3,0x2,0xd,0x6,0xf,0xe,0xb,0x4,0xe,0x0,0xb,0x6,0x2,0x5,0x9,0x2,0xd,0x8,0xd,0x0,0x3,0x2,0x9];
-        test_photon_nbit::<6,_>(&mut CircuitBuilder::photon_144, &INPUT, &OUTPUT, 4);
-    }
-
-    #[test]
-    fn test_photon_196() {
-        const INPUT: [u8; 49] = [0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,2,8,2,4,2,4];
-        const OUTPUT: [u8; 49] = [
-            0x1,0xf,0x0,0xd,0x4,0xa,0x1,
-            0xd,0xd,0x0,0xa,0x3,0x1,0xd,
-            0xe,0xc,0xf,0x5,0xb,0x6,0x9,
-            0xb,0x6,0x6,0xe,0x0,0xc,0x8,
-            0xf,0x6,0x4,0x4,0xc,0xe,0xe,
-            0xe,0x9,0x0,0x2,0x0,0xf,0x4,
-            0x3,0xa,0x9,0xd,0xe,0x7,0x4
-        ];
-        test_photon_nbit::<7,_>(&mut CircuitBuilder::photon_196, &INPUT, &OUTPUT, 4);
-    }
-
-    #[test]
-    fn test_photon_256() {
-        const INPUT: [u8; 64] = [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,3,8,2,0,2,0];
-        const OUTPUT: [u8; 64] = [
-            0x1, 0x7, 0x3, 0x0, 0x4, 0x2, 0x4, 0x2,
-            0x9, 0xc, 0xf, 0x2, 0x6, 0xe, 0x1, 0x0,
-            0x8, 0xd, 0x3, 0xd, 0x9, 0xc, 0xf, 0x9,
-            0x0, 0x0, 0xe, 0x2, 0x7, 0xb, 0xd, 0xc,
-            0xc, 0x6, 0x2, 0x9, 0xb, 0x3, 0xd, 0x1,
-            0xa, 0xf, 0x4, 0x1, 0xf, 0x1, 0xc, 0xb,
-            0x7, 0x4, 0x8, 0x3, 0xf, 0xc, 0xc, 0x0,
-            0x8, 0x9, 0x1, 0x6, 0xb, 0x8, 0x2, 0xc
-        ];
-        test_photon_nbit::<8,_>(&mut CircuitBuilder::photon_256, &INPUT, &OUTPUT, 4);
-    }
-
-    #[test]
-    fn test_aes_sbox() {
-        const AES_SBOX: [u8; 256] = [
-            0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
-            0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
-            0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
-            0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
-            0x09, 0x83, 0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29, 0xe3, 0x2f, 0x84,
-            0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b, 0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf,
-            0xd0, 0xef, 0xaa, 0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c, 0x9f, 0xa8,
-            0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc, 0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2,
-            0xcd, 0x0c, 0x13, 0xec, 0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19, 0x73,
-            0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee, 0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb,
-            0xe0, 0x32, 0x3a, 0x0a, 0x49, 0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
-            0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4, 0xea, 0x65, 0x7a, 0xae, 0x08,
-            0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6, 0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a,
-            0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
-            0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
-            0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
-        ];
-        let circuit = {
-            let mut b = CircuitBuilder::new();
-            let mods: Vec<_> = (0..8).map(|_| Modulus::Zq {q:2}).collect();
-            let inputs = b.garbler_inputs(&mods);
-            let outputs = aes_sbox(&mut b, &inputs).unwrap();
-            assert_eq!(b.outputs(&outputs).unwrap(), None);
-            b.finish()
-        };
-        let (enc, gc) = garble(&circuit).unwrap();
-        for (x,y) in AES_SBOX.iter().enumerate() {
-            let x_bits: Vec<u16> = (0..8).map(|i| (x as u16 >> i) & 0x1).collect();
-            let y_bits: Vec<u16> = (0..8).map(|i| (*y as u16 >> i) & 0x1).collect();
-            let inputs = enc.encode_garbler_inputs(&x_bits);
-            let outputs = gc.eval(&circuit, &inputs, &[]).unwrap();
-            assert_eq!(&outputs, &y_bits);
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: 19 };
+            streaming_test_GF4(
+                move |b, x| fancy_photon100(b, x),
+                move |b, x| fancy_photon100(b, x),
+                move |b, x| fancy_photon100(b, x),
+                &q,
+                5
+            );
         }
     }
 
+/// ------------ mod.rs tests ------------------
+
     #[test]
-    fn test_cmul_mod_x8_x4_x3_x_1() {
-        const CMUL_1: [u16; 256] = [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, 0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde, 0xdf, 0xe0, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee, 0xef, 0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff];
-        const CMUL_2: [u16; 256] = [0x0, 0x2, 0x4, 0x6, 0x8, 0xa, 0xc, 0xe, 0x10, 0x12, 0x14, 0x16, 0x18, 0x1a, 0x1c, 0x1e, 0x20, 0x22, 0x24, 0x26, 0x28, 0x2a, 0x2c, 0x2e, 0x30, 0x32, 0x34, 0x36, 0x38, 0x3a, 0x3c, 0x3e, 0x40, 0x42, 0x44, 0x46, 0x48, 0x4a, 0x4c, 0x4e, 0x50, 0x52, 0x54, 0x56, 0x58, 0x5a, 0x5c, 0x5e, 0x60, 0x62, 0x64, 0x66, 0x68, 0x6a, 0x6c, 0x6e, 0x70, 0x72, 0x74, 0x76, 0x78, 0x7a, 0x7c, 0x7e, 0x80, 0x82, 0x84, 0x86, 0x88, 0x8a, 0x8c, 0x8e, 0x90, 0x92, 0x94, 0x96, 0x98, 0x9a, 0x9c, 0x9e, 0xa0, 0xa2, 0xa4, 0xa6, 0xa8, 0xaa, 0xac, 0xae, 0xb0, 0xb2, 0xb4, 0xb6, 0xb8, 0xba, 0xbc, 0xbe, 0xc0, 0xc2, 0xc4, 0xc6, 0xc8, 0xca, 0xcc, 0xce, 0xd0, 0xd2, 0xd4, 0xd6, 0xd8, 0xda, 0xdc, 0xde, 0xe0, 0xe2, 0xe4, 0xe6, 0xe8, 0xea, 0xec, 0xee, 0xf0, 0xf2, 0xf4, 0xf6, 0xf8, 0xfa, 0xfc, 0xfe, 0x1b, 0x19, 0x1f, 0x1d, 0x13, 0x11, 0x17, 0x15, 0xb, 0x9, 0xf, 0xd, 0x3, 0x1, 0x7, 0x5, 0x3b, 0x39, 0x3f, 0x3d, 0x33, 0x31, 0x37, 0x35, 0x2b, 0x29, 0x2f, 0x2d, 0x23, 0x21, 0x27, 0x25, 0x5b, 0x59, 0x5f, 0x5d, 0x53, 0x51, 0x57, 0x55, 0x4b, 0x49, 0x4f, 0x4d, 0x43, 0x41, 0x47, 0x45, 0x7b, 0x79, 0x7f, 0x7d, 0x73, 0x71, 0x77, 0x75, 0x6b, 0x69, 0x6f, 0x6d, 0x63, 0x61, 0x67, 0x65, 0x9b, 0x99, 0x9f, 0x9d, 0x93, 0x91, 0x97, 0x95, 0x8b, 0x89, 0x8f, 0x8d, 0x83, 0x81, 0x87, 0x85, 0xbb, 0xb9, 0xbf, 0xbd, 0xb3, 0xb1, 0xb7, 0xb5, 0xab, 0xa9, 0xaf, 0xad, 0xa3, 0xa1, 0xa7, 0xa5, 0xdb, 0xd9, 0xdf, 0xdd, 0xd3, 0xd1, 0xd7, 0xd5, 0xcb, 0xc9, 0xcf, 0xcd, 0xc3, 0xc1, 0xc7, 0xc5, 0xfb, 0xf9, 0xff, 0xfd, 0xf3, 0xf1, 0xf7, 0xf5, 0xeb, 0xe9, 0xef, 0xed, 0xe3, 0xe1, 0xe7, 0xe5];
-        const CMUL_3: [u16; 256] = [0x0, 0x3, 0x6, 0x5, 0xc, 0xf, 0xa, 0x9, 0x18, 0x1b, 0x1e, 0x1d, 0x14, 0x17, 0x12, 0x11, 0x30, 0x33, 0x36, 0x35, 0x3c, 0x3f, 0x3a, 0x39, 0x28, 0x2b, 0x2e, 0x2d, 0x24, 0x27, 0x22, 0x21, 0x60, 0x63, 0x66, 0x65, 0x6c, 0x6f, 0x6a, 0x69, 0x78, 0x7b, 0x7e, 0x7d, 0x74, 0x77, 0x72, 0x71, 0x50, 0x53, 0x56, 0x55, 0x5c, 0x5f, 0x5a, 0x59, 0x48, 0x4b, 0x4e, 0x4d, 0x44, 0x47, 0x42, 0x41, 0xc0, 0xc3, 0xc6, 0xc5, 0xcc, 0xcf, 0xca, 0xc9, 0xd8, 0xdb, 0xde, 0xdd, 0xd4, 0xd7, 0xd2, 0xd1, 0xf0, 0xf3, 0xf6, 0xf5, 0xfc, 0xff, 0xfa, 0xf9, 0xe8, 0xeb, 0xee, 0xed, 0xe4, 0xe7, 0xe2, 0xe1, 0xa0, 0xa3, 0xa6, 0xa5, 0xac, 0xaf, 0xaa, 0xa9, 0xb8, 0xbb, 0xbe, 0xbd, 0xb4, 0xb7, 0xb2, 0xb1, 0x90, 0x93, 0x96, 0x95, 0x9c, 0x9f, 0x9a, 0x99, 0x88, 0x8b, 0x8e, 0x8d, 0x84, 0x87, 0x82, 0x81, 0x9b, 0x98, 0x9d, 0x9e, 0x97, 0x94, 0x91, 0x92, 0x83, 0x80, 0x85, 0x86, 0x8f, 0x8c, 0x89, 0x8a, 0xab, 0xa8, 0xad, 0xae, 0xa7, 0xa4, 0xa1, 0xa2, 0xb3, 0xb0, 0xb5, 0xb6, 0xbf, 0xbc, 0xb9, 0xba, 0xfb, 0xf8, 0xfd, 0xfe, 0xf7, 0xf4, 0xf1, 0xf2, 0xe3, 0xe0, 0xe5, 0xe6, 0xef, 0xec, 0xe9, 0xea, 0xcb, 0xc8, 0xcd, 0xce, 0xc7, 0xc4, 0xc1, 0xc2, 0xd3, 0xd0, 0xd5, 0xd6, 0xdf, 0xdc, 0xd9, 0xda, 0x5b, 0x58, 0x5d, 0x5e, 0x57, 0x54, 0x51, 0x52, 0x43, 0x40, 0x45, 0x46, 0x4f, 0x4c, 0x49, 0x4a, 0x6b, 0x68, 0x6d, 0x6e, 0x67, 0x64, 0x61, 0x62, 0x73, 0x70, 0x75, 0x76, 0x7f, 0x7c, 0x79, 0x7a, 0x3b, 0x38, 0x3d, 0x3e, 0x37, 0x34, 0x31, 0x32, 0x23, 0x20, 0x25, 0x26, 0x2f, 0x2c, 0x29, 0x2a, 0xb, 0x8, 0xd, 0xe, 0x7, 0x4, 0x1, 0x2, 0x13, 0x10, 0x15, 0x16, 0x1f, 0x1c, 0x19, 0x1a];
-        const CMUL_4: [u16; 256] = [0x0, 0x4, 0x8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x30, 0x34, 0x38, 0x3c, 0x40, 0x44, 0x48, 0x4c, 0x50, 0x54, 0x58, 0x5c, 0x60, 0x64, 0x68, 0x6c, 0x70, 0x74, 0x78, 0x7c, 0x80, 0x84, 0x88, 0x8c, 0x90, 0x94, 0x98, 0x9c, 0xa0, 0xa4, 0xa8, 0xac, 0xb0, 0xb4, 0xb8, 0xbc, 0xc0, 0xc4, 0xc8, 0xcc, 0xd0, 0xd4, 0xd8, 0xdc, 0xe0, 0xe4, 0xe8, 0xec, 0xf0, 0xf4, 0xf8, 0xfc, 0x1b, 0x1f, 0x13, 0x17, 0xb, 0xf, 0x3, 0x7, 0x3b, 0x3f, 0x33, 0x37, 0x2b, 0x2f, 0x23, 0x27, 0x5b, 0x5f, 0x53, 0x57, 0x4b, 0x4f, 0x43, 0x47, 0x7b, 0x7f, 0x73, 0x77, 0x6b, 0x6f, 0x63, 0x67, 0x9b, 0x9f, 0x93, 0x97, 0x8b, 0x8f, 0x83, 0x87, 0xbb, 0xbf, 0xb3, 0xb7, 0xab, 0xaf, 0xa3, 0xa7, 0xdb, 0xdf, 0xd3, 0xd7, 0xcb, 0xcf, 0xc3, 0xc7, 0xfb, 0xff, 0xf3, 0xf7, 0xeb, 0xef, 0xe3, 0xe7, 0x36, 0x32, 0x3e, 0x3a, 0x26, 0x22, 0x2e, 0x2a, 0x16, 0x12, 0x1e, 0x1a, 0x6, 0x2, 0xe, 0xa, 0x76, 0x72, 0x7e, 0x7a, 0x66, 0x62, 0x6e, 0x6a, 0x56, 0x52, 0x5e, 0x5a, 0x46, 0x42, 0x4e, 0x4a, 0xb6, 0xb2, 0xbe, 0xba, 0xa6, 0xa2, 0xae, 0xaa, 0x96, 0x92, 0x9e, 0x9a, 0x86, 0x82, 0x8e, 0x8a, 0xf6, 0xf2, 0xfe, 0xfa, 0xe6, 0xe2, 0xee, 0xea, 0xd6, 0xd2, 0xde, 0xda, 0xc6, 0xc2, 0xce, 0xca, 0x2d, 0x29, 0x25, 0x21, 0x3d, 0x39, 0x35, 0x31, 0xd, 0x9, 0x5, 0x1, 0x1d, 0x19, 0x15, 0x11, 0x6d, 0x69, 0x65, 0x61, 0x7d, 0x79, 0x75, 0x71, 0x4d, 0x49, 0x45, 0x41, 0x5d, 0x59, 0x55, 0x51, 0xad, 0xa9, 0xa5, 0xa1, 0xbd, 0xb9, 0xb5, 0xb1, 0x8d, 0x89, 0x85, 0x81, 0x9d, 0x99, 0x95, 0x91, 0xed, 0xe9, 0xe5, 0xe1, 0xfd, 0xf9, 0xf5, 0xf1, 0xcd, 0xc9, 0xc5, 0xc1, 0xdd, 0xd9, 0xd5, 0xd1];
+    fn test_photon80() {
+        let mut rng = rand::thread_rng();
+        let p = Modulus::GF4 { p: 19 };
+        let d = 5;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
 
-        fn test_cmul(c: usize, expected: &[u16; 256]) {
-            let circuit = {
-                let mut b = CircuitBuilder::new();
-                let mods: Vec<_> = (0..8).map(|_| Modulus::Zq {q:2}).collect();
-                let inputs = b.garbler_inputs(&mods);
-                let outputs = cmul_mod_x8_x4_x3_x_1(&mut b, c, &inputs).unwrap();
-                assert_eq!(b.outputs(&outputs).unwrap(), None);
-                b.finish()
-            };
-            let (enc, gc) = garble(&circuit).unwrap();
-            for (x,y) in expected.iter().enumerate() {
-                let x_bits: Vec<u16> = (0..8).map(|i| (x as u16 >> i) & 0x1).collect();
-                let y_bits: Vec<u16> = (0..8).map(|i| (*y as u16 >> i) & 0x1).collect();
-                let inputs = enc.encode_garbler_inputs(&x_bits);
-                let outputs = gc.eval(&circuit, &inputs, &[]).unwrap();
-                assert_eq!(&outputs, &y_bits);
-            }
-        }
+        // let ics = [0, 1, 3, 6, 4];
+        // let Z = [1, 2, 9, 9, 2];
 
-        test_cmul(1, &CMUL_1);
-        test_cmul(2, &CMUL_2);
-        test_cmul(3, &CMUL_3);
-        test_cmul(4, &CMUL_4);
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
+        let target_enc = dummy.photon_100(&dummy_input).unwrap();
+        let target = dummy.outputs(&target_enc).unwrap().unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
+            let gb_o = gb.photon_100(&xs).unwrap();
+            gb.outputs(&gb_o);
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_many(&vec![p; d*d]).unwrap();
+        let xs_res = ev.photon_100(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
     }
 
     #[test]
-    fn test_photon_288() {
-        const INPUT: [u8; 36] = [0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0, 0, 0, 0, 0x40, 0x20, 0x20];
-        const OUTPUT: [u8; 36] = [
-            0x4D, 0xBD, 0x90, 0x36, 0x1C, 0xB5,
-            0xE0, 0x9E, 0x5C, 0x38, 0xA9, 0xC9,
-            0xE9, 0xD5, 0x66, 0x08, 0xCF, 0x52,
-            0xCB, 0x6B, 0xC8, 0x8B, 0x93, 0x16,
-            0xE8, 0xC2, 0xC0, 0x69, 0x25, 0xF7,
-            0x18, 0xCC, 0x62, 0x9C, 0xAE, 0x79
-        ];
-        test_photon_nbit::<6,_>(&mut CircuitBuilder::photon_288, &INPUT, &OUTPUT, 8);
+    fn test_photon192() {
+        let mut rng = rand::thread_rng();
+        let p = Modulus::GF4 { p: 19 };
+        let d = 7;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
+
+        // let ics = [0, 1, 2, 5, 3, 6, 4];
+        // let Z = [1, 4, 6, 1, 1, 6, 4];
+
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
+        let target_enc = dummy.photon_196(&dummy_input).unwrap();
+        let target = dummy.outputs(&target_enc).unwrap().unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
+            let gb_o = gb.photon_196(&xs).unwrap();
+            gb.outputs(&gb_o);
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_many(&vec![p; d*d]).unwrap();
+        let xs_res = ev.photon_196(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
+    }
+
+    #[test]
+    fn test_photon256() {
+        let mut rng = rand::thread_rng();
+        let p = Modulus::GF8 { p: 283 };
+        let d = 6;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 256).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
+
+        // let ics = [0, 1, 3, 7, 6, 4];
+        // let Z = [2, 3, 1, 2, 1, 4];
+
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
+        let target_enc = dummy.photon_288(&dummy_input).unwrap();
+        let target = dummy.outputs(&target_enc).unwrap().unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
+            let gb_o = gb.photon_288(&xs).unwrap();
+            gb.outputs(&gb_o);
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_many(&vec![p; d*d]).unwrap();
+        let xs_res = ev.photon_288(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
     }
 }
