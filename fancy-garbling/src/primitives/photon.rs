@@ -310,8 +310,8 @@ impl<F: Fancy> PhotonState<F>
         f: &mut F,
         Z: &[u16]
     ) -> Result<(),F::Error> {
-        let mut Zrev = Z;
-        Zrev.reverse();
+        let Zrev: Vec<u16> = Z.to_vec();
+        
 
         let d = self.dim();
         
