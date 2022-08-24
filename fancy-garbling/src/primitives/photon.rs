@@ -765,7 +765,7 @@ mod photon_test {
 
     // helper - checks that Streaming evaluation of a fancy function equals Dummy
     // evaluation of the same function
-    fn streaming_test_GF4<FGB, FEV, FDU>(
+    fn streaming_test_GF<FGB, FEV, FDU>(
         mut f_gb: FGB,
         mut f_ev: FEV,
         mut f_du: FDU,
@@ -817,12 +817,33 @@ mod photon_test {
 
         for _ in 0..16 {
             let q = Modulus::GF4 { p: 19 };
-            streaming_test_GF4(
+            streaming_test_GF(
                 move |b, x| fancy_photon100(b, x),
                 move |b, x| fancy_photon100(b, x),
                 move |b, x| fancy_photon100(b, x),
                 &q,
                 5
+            );
+        }
+    }
+
+    #[test]
+    fn photon288() {
+        fn fancy_photon288<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
+            // let Z: &[u16] = &[1, 2, 9, 9, 2];
+            // let ics = &[0, 1, 3, 6, 4];
+            let z = b.photon_288(x).unwrap();
+            b.outputs(&z).unwrap()
+        }
+
+        for _ in 0..16 {
+            let q = Modulus::GF8 { p: 283 };
+            streaming_test_GF(
+                move |b, x| fancy_photon288(b, x),
+                move |b, x| fancy_photon288(b, x),
+                move |b, x| fancy_photon288(b, x),
+                &q,
+                6
             );
         }
     }
