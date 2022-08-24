@@ -89,6 +89,11 @@ impl<F: Fancy> PhotonState<F>
         }
         mod0
     }
+    /// Return copy of `state_matrix`
+    fn state_matrix(&self) -> Vec<Vec<F::Item>> {
+        self.state_matrix.clone()
+    }
+
     fn size(&self) -> usize {
         self.modulus().size().into()
     }
@@ -179,17 +184,17 @@ impl<F: Fancy> PhotonState<F>
         // let mut res_state = self.clone();
         // println!("initial: {}", res_state);
         for round in 0..12 {
-            self.AddConstants(f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
-            // println!("addc: {}", res_state);
-
-            self.SubCells(f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
-            // println!("subc: {}", res_state);
+            self.MixColumnsSerialInv(f, Z)?;       // Input Z coefficients as in the forward permutation
+            // println!("mixc: {}", self);
 
             self.ShiftRowsInv()?;
-            // println!("shiftr: {}", res_state);
+            // println!("shiftr: {}", self);
 
-            self.MixColumnsSerialInv(f, Z)?;       // Input Z coefficients as in the forward permutation
-            // println!("mixc: {}", res_state);
+            self.SubCells(f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
+            // println!("subc: {}", self);
+
+            self.AddConstants(f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
+            // println!("addc: {}", self);
         }
 
         Ok(())
@@ -266,7 +271,7 @@ impl<F: Fancy> PhotonState<F>
                     tmp.push(self.state_matrix[i][j].clone());
                 }
                 for j in 0..d { 
-                    self.state_matrix[i][j] = tmp[(j-i+d)%d].clone();
+                    self.state_matrix[i][j] = tmp[(j+d-i)%d].clone();
                 }
                 tmp.clear();
             }
@@ -309,7 +314,7 @@ impl<F: Fancy> PhotonState<F>
         f: &mut F,
         Z: &[u16]
     ) -> Result<(),F::Error> {
-        let Zrev: Vec<u16> = Z.to_vec();
+        let Zrev: Vec<u16> = Z.to_vec().into_iter().rev().collect_vec();
         
 
         let d = self.dim();
@@ -341,18 +346,19 @@ impl<F: Fancy> PhotonState<F>
     }
 }
 
-// impl<F: Clone + HasModulus + std::fmt::Display> std::fmt::Display for PhotonState<F> {
-//     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-//         write!(fmt, "Modulus state: {} \n", self.modulus()).unwrap();
-//         for row in self.state_matrix() {
-//             for el in row.iter() {
-//                 write!(fmt, "{} ", el).unwrap();
-//             }
-//             write!(fmt, "\n").unwrap();
-//         }
-//         Ok(())
-//     }
-// }
+impl<F: Fancy> std::fmt::Display for PhotonState<F>
+    where F::Item: std::fmt::Display {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(fmt, "Modulus state: {} \n", self.modulus()).unwrap();
+        for row in self.state_matrix() {
+            for el in row.iter() {
+                write!(fmt, "{} ", el).unwrap();
+            }
+            write!(fmt, "\n").unwrap();
+        }
+        Ok(())
+    }
+}
 
 /// Extension trait for Fancy which provides Photon constructions
 pub trait PhotonGadgets: Fancy {
@@ -705,16 +711,15 @@ mod photon_test {
 
     #[test]
     fn forward_backward_permutation_80() {
-        // let Z: &[u16] = &[1, 2, 9, 9, 2];
-        // let ics = &[0, 1, 3, 6, 4];
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
-        const D: usize = 5;
+        const D: usize = 5; 
 
         // Build circuit
         let circ = {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
-
             let xx = b.photon_100(&x_vec).unwrap();
             let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
             b.outputs(&z);
@@ -729,6 +734,30 @@ mod photon_test {
                                 0, 0 ,0, 1, 0];
         let res = circ.eval_plain(garbler_input, &[]).unwrap();
         assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn backward_80() {
+        let init_state: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
+            3, 2, 0xc, 5, 7,
+            0xd, 9, 4, 0xc, 7,
+            5, 0xb, 8, 0xe, 0,
+            0xf, 9, 1, 7, 0xc);
+        
+        let Z: &[u16] = &[1, 2, 9, 9, 2];
+        let ics = &[0, 1, 3, 6, 4];
+        let mut f = Dummy::new();
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        let init_state_enc = f.encode_many(&init_state, &[x4_x_1; 25]).unwrap();
+        let state = f.photon_custom_inv(&init_state_enc,5,ics,Z,true).unwrap();
+        // println!("full: {}", res);
+        let res_state = vec!(0, 0 ,0, 0, 4,
+            0, 0, 0, 0, 1,
+            0, 0 ,0, 0, 4,
+            0, 0 ,0, 0, 1,
+            0, 0 ,0, 1, 0);
+  
+        assert_eq!(res_state, state.into_iter().map(|w| w.val()).collect_vec());
     }
 
 
