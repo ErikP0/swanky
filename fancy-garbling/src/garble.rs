@@ -555,7 +555,7 @@ mod GF4_nonstreaming {
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
                 let mut inps = Vec::new();
-                for i in 0..c.num_evaluator_inputs() {
+                for _ in 0..c.num_evaluator_inputs() {
                     let x = (rng.gen::<u8>()&(15)) as u16;
                     inps.push(x);
                 }
@@ -941,7 +941,7 @@ mod GF8_nonstreaming {
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
                 let mut inps = Vec::new();
-                for i in 0..c.num_evaluator_inputs() {
+                for _ in 0..c.num_evaluator_inputs() {
                     let x = rng.gen::<u8>() as u16;
                     inps.push(x);
                 }

@@ -368,7 +368,7 @@ pub trait PhotonGadgets: Fancy {
     
     fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
 
-    fn photon_custom_inv(&mut self, input: Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
+    fn photon_custom_inv(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error>;   
 }
 
 impl<F: Fancy> PhotonGadgets for F {
@@ -411,7 +411,7 @@ impl<F: Fancy> PhotonGadgets for F {
 
     fn photon_custom_inv(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, d);
-        let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
+        let sbox = if in_GF4 {SBOX_PRE_INV} else {SBOX_AES_INV};
         state.PermutePHOTONInverse(self, ics, sbox, Zi)?;
         Ok(state.output_photon().unwrap())
     }
@@ -438,8 +438,8 @@ mod photon_test {
                                           0, 0 ,0, 0, 4,
                                           0, 0 ,0, 0, 1,
                                           0, 0 ,0, 1, 0);
-        let Z: &[u16] = &[1, 2, 9, 9, 2];
-        let ics = &[0, 1, 3, 6, 4];
+        // let Z: &[u16] = &[1, 2, 9, 9, 2];
+        // let ics = &[0, 1, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 25]).unwrap();
@@ -461,8 +461,8 @@ mod photon_test {
                                           0, 0 ,0, 0, 0, 0,
                                           0, 0 ,0, 0, 0, 1,
                                           0, 0, 0, 0, 0, 0);
-        let Z: &[u16] = &[1, 2, 8, 5, 8, 2];
-        let ics = &[0, 1, 3, 7, 6, 4];
+        // let Z: &[u16] = &[1, 2, 8, 5, 8, 2];
+        // let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 36]).unwrap();
@@ -489,8 +489,8 @@ mod photon_test {
                                           0, 0 ,0, 0, 0, 0, 4,
                                           0, 0, 0, 0, 0, 0, 2,
                                           0, 0, 0, 0, 0, 0, 4);
-        let Z = &[1, 4, 6, 1, 1, 6, 4];
-        let ics = &[0, 1, 2, 5, 3, 6, 4];
+        // let Z = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
@@ -518,8 +518,8 @@ mod photon_test {
                                 0, 0 ,0, 0, 0, 0, 4,
                                 0, 0, 0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 4);
-        let Z = &[1, 4, 6, 1, 1, 6, 4];
-        let ics = &[0, 1, 2, 5, 3, 6, 4];
+        // let Z = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 49]).unwrap();
@@ -548,8 +548,8 @@ mod photon_test {
                                           0, 0, 0, 0, 0, 0, 0, 0,
                                           0, 0, 0, 0, 0, 0, 0, 2,
                                           0, 0, 0, 0, 0, 0, 0, 0);
-        let Z = &[2, 4, 2, 11, 2, 8, 5, 6];
-        let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
+        // let Z = &[2, 4, 2, 11, 2, 8, 5, 6];
+        // let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
         let mut f = Dummy::new();
         let x4_x_1 = Modulus::GF4 { p: 19 };
         let init_state_enc = f.encode_many(&init_state_m, &[x4_x_1; 64]).unwrap();
@@ -578,8 +578,8 @@ mod photon_test {
                                 0, 0 ,0, 0, 0, 0x20,
                                 0, 0, 0, 0, 0, 0x20);
         
-        let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
-        let ics = &[0, 1, 3, 7, 6, 4];
+        // let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        // let ics = &[0, 1, 3, 7, 6, 4];
         let mut f = Dummy::new();
         let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
         let init_state_enc = f.encode_many(&init_state_m, &[x8_x4_x3_x_1; 36]).unwrap();
@@ -600,8 +600,8 @@ mod photon_test {
     // with the eval_plain function
     #[test]
     fn circuit_photon80() {
-        let Z: &[u16] = &[1, 2, 9, 9, 2];
-        let ics = &[0, 1, 3, 6, 4];
+        // let Z: &[u16] = &[1, 2, 9, 9, 2];
+        // let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 5;
 
@@ -632,8 +632,8 @@ mod photon_test {
 
     #[test]
     fn circuit_photon160() {
-        let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
-        let ics = &[0, 1, 2, 5, 3, 6, 4];
+        // let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
+        // let ics = &[0, 1, 2, 5, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 6;
 
@@ -669,16 +669,15 @@ mod photon_test {
 
     #[test]
     fn circuit_photon256() {
-        let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
-        let ics = &[0, 1, 3, 7, 6, 4];
+        // let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        // let ics = &[0, 1, 3, 7, 6, 4];
         let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
-        let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 6;
 
         // Build circuit
         let circ = {
             let mut b = CircuitBuilder::new();
-            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let x_vec = b.garbler_inputs(&[x8_x4_x3_x_1; D*D]); 
             let z = b.photon_288(&x_vec).unwrap();
             b.outputs(&z);
             b.finish()
@@ -706,8 +705,8 @@ mod photon_test {
 
     #[test]
     fn forward_backward_permutation_80() {
-        let Z: &[u16] = &[1, 2, 9, 9, 2];
-        let ics = &[0, 1, 3, 6, 4];
+        // let Z: &[u16] = &[1, 2, 9, 9, 2];
+        // let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 5;
 
@@ -781,8 +780,8 @@ mod photon_test {
     #[test]
     fn photon100() {
         fn fancy_photon100<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
-            let Z: &[u16] = &[1, 2, 9, 9, 2];
-            let ics = &[0, 1, 3, 6, 4];
+            // let Z: &[u16] = &[1, 2, 9, 9, 2];
+            // let ics = &[0, 1, 3, 6, 4];
             let z = b.photon_100(x).unwrap();
             b.outputs(&z).unwrap()
         }
@@ -810,8 +809,8 @@ mod photon_test {
         let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
         println!("inp: {:?}", input);
 
-        let ics = [0, 1, 3, 6, 4];
-        let Z = [1, 2, 9, 9, 2];
+        // let ics = [0, 1, 3, 6, 4];
+        // let Z = [1, 2, 9, 9, 2];
 
         // Run dummy version.
         let mut dummy = Dummy::new();
@@ -849,8 +848,8 @@ mod photon_test {
         let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
         println!("inp: {:?}", input);
 
-        let ics = [0, 1, 2, 5, 3, 6, 4];
-        let Z = [1, 4, 6, 1, 1, 6, 4];
+        // let ics = [0, 1, 2, 5, 3, 6, 4];
+        // let Z = [1, 4, 6, 1, 1, 6, 4];
 
         // Run dummy version.
         let mut dummy = Dummy::new();
@@ -888,8 +887,8 @@ mod photon_test {
         let input = (0..n).map(|_| rng.gen_u16() % 256).collect::<Vec<u16>>();
         println!("inp: {:?}", input);
 
-        let ics = [0, 1, 3, 7, 6, 4];
-        let Z = [2, 3, 1, 2, 1, 4];
+        // let ics = [0, 1, 3, 7, 6, 4];
+        // let Z = [2, 3, 1, 2, 1, 4];
 
         // Run dummy version.
         let mut dummy = Dummy::new();
