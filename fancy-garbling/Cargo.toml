@@ -28,6 +28,7 @@ ndarray = "0.15.6"
 regex = "1.4.3"
 serde = { version = "1.0.123", features = ["derive"], optional = true }
 serde_json = "1.0.58"
+colored = "1.8.0"
 
 [dev-dependencies]
 criterion = "0.3.4"
@@ -36,6 +37,9 @@ crossbeam = "0.8.0"
 [[bin]]
 name = "gen-deltas"
 required-features = ["serde1"]
+
+[[bin]]
+name = "photon_benches"
 
 [[bench]]
 name = "wire_operations"
