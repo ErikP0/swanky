@@ -11,7 +11,7 @@ use crate::{
     dummy::{Dummy, DummyVal},
     errors::{CircuitBuilderError, DummyError, FancyError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
-    wire::Modulus
+    wire::Modulus, FancyReveal
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -132,7 +132,7 @@ impl Circuit {
     }
 
     /// Evaluate the circuit using fancy object `f`.
-    pub fn eval<F: Fancy>(
+    pub fn eval<F: Fancy + FancyReveal>(
         &self,
         f: &mut F,
         garbler_inputs: &[F::Item],
@@ -218,10 +218,10 @@ impl Circuit {
             let r = cache[r.ix]
                 .as_ref()
                 .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?;
-            let out = f.output(r)?;
+            let out = f.reveal(r)?;
             outputs.push(out);
         }
-        Ok(outputs.into_iter().collect())
+        Ok(Some(outputs))
     }
 
     /// Evaluate the circuit in plaintext.
