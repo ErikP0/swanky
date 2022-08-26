@@ -47,17 +47,20 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     out
 }
 
-fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, runs: usize) -> Circuit  where 
+fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sruns: usize, pruns: usize) -> Circuit  where 
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
-    let x = b.evaluator_inputs(&vec![*poly; d*d]); 
-    let mut z = x.clone();
-    for _ in 0..runs {
-        z = perm(&mut b, &z).unwrap();
+    let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
+    xs.iter().for_each(|x| println!("len: {} {}", x.len(), pruns));
+    for x in xs.into_iter() {
+        let mut z = x;
+        for _ in 0..sruns {
+            z = perm(&mut b, &z).unwrap();
+        }
+        b.outputs(&z).unwrap();
     }
-    b.outputs(&z).unwrap();
     let out = b.finish();
     println!(
         "Evaluator :: Building circuit: {} ms",
@@ -117,7 +120,7 @@ fn main() {
             d = 5;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs, p_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs, p_runs);
@@ -133,7 +136,7 @@ fn main() {
             d = 6;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs, p_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs, p_runs);
@@ -150,7 +153,7 @@ fn main() {
             d = 7;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs, p_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs, p_runs);
@@ -168,7 +171,7 @@ fn main() {
             d = 8;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs, p_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs, p_runs);
@@ -187,7 +190,7 @@ fn main() {
             d = 6;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs, p_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs, p_runs);
