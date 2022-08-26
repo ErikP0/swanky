@@ -5,20 +5,18 @@ extern crate fancy_garbling;
 // use criterion::{criterion_group, criterion_main, Criterion};
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
-    twopac::semihonest::Evaluator,
+    twopac::semihonest::Garbler,
     FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError,
 };
 use itertools::Itertools;
-use ndarray::ShapeArg;
-use ocelot::ot::AlszReceiver as OtReceiver;
+use ocelot::ot::{AlszSender as OtSender};
 use scuttlebutt::{AesRng, Channel};
 use std::{
     io::{BufReader, BufWriter},
-    net::{TcpStream, TcpListener},
-    time::{Duration, SystemTime}, env,
+    time::{Duration, SystemTime}, net::TcpStream, env,
 };
 
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -30,7 +28,8 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
-    xs.iter().for_each(|x| println!("len: {} {}", x.len(), pruns));
+    xs.iter().for_each(|x| println!("len: {}", x.len()));
+    // let x = b.garbler_inputs(&vec![*poly; d*d]); 
     for x in xs.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
@@ -39,12 +38,13 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    out.print_info();
     println!(
-        "Evaluator :: Building circuit: {} ms",
+        "Garbler :: Building circuit: {} ms",
         start.elapsed().unwrap().as_millis()
     );
-    out.print_info().unwrap();
     out
+    
 }
 
 fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, runs: usize) -> Circuit  where 
@@ -52,50 +52,52 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, ru
     {
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
-    let x = b.evaluator_inputs(&vec![*poly; d*d]); 
-    let mut z = x.clone();
+    let x = b.evaluator_inputs(&vec![*poly; d*d]);
+    let mut z = x;
     for _ in 0..runs {
         z = perm(&mut b, &z).unwrap();
     }
     b.outputs(&z).unwrap();
     let out = b.finish();
     println!(
-        "Evaluator :: Building circuit: {} ms",
+        "Garbler :: Building circuit: {} ms",
         start.elapsed().unwrap().as_millis()
     );
     out
 }
 
-fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus) 
-                -> Vec<u16> {
-    let n_ev_inputs = ev_inputs.len();
+fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) {
+    let n_gb_inputs = gb_inputs.len();
 
     let rng = AesRng::new();
-    let reader = BufReader::new(receiver.try_clone().unwrap());
-    let writer = BufWriter::new(receiver);
+    let reader = BufReader::new(sender.try_clone().unwrap());
+    let writer = BufWriter::new(sender);
     let channel = Channel::new(reader, writer);
     let start = SystemTime::now();
-    let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+    let mut gb = Garbler::<MyChannel, AesRng, OtSender>::new(channel, rng).unwrap();
     println!(
-        "Evaluator :: Initialization: {} ms",
+        "Garbler :: Initialization: {} ms",
         start.elapsed().unwrap().as_millis()
     );
     let start = SystemTime::now();
-    let xs = ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap();
-    let ys = ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap();
+    let mut xs = Vec::new(); 
+    let mut ys = Vec::new();
+    for _ in 0..p_runs {
+        gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
+        gb.receive_many(&vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
+    }
     println!(
-        "Evaluator :: Encoding inputs: {} ms",
+        "Garbler :: Encoding inputs: {} ms",
         start.elapsed().unwrap().as_millis()
     );
     let start = SystemTime::now();
-    let output = circ.eval(&mut ev, &xs, &ys).unwrap();
+    circ.eval(&mut gb, &xs, &ys).unwrap();
     println!(
-        "Evaluator :: Circuit evaluation: {} ms",
+        "Garbler :: Circuit garbling: {} ms",
         start.elapsed().unwrap().as_millis()
     );
-    output.unwrap()
+    
 }
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -105,7 +107,8 @@ fn main() {
     let p_runs: usize = args[4].parse().unwrap();
     let modulus; let circ;
     let d; let input;
-    let mut output;
+
+    let total = SystemTime::now();
 
     match perm_id.as_ref() {
         "100" => {
@@ -198,27 +201,20 @@ fn main() {
         &_ => panic!("Command line argument is not a right permutation ID!")
     }
 
-    let listener = TcpListener::bind(EV_ADDR).unwrap();
-    println!("Evaluator listening on {}", EV_ADDR);
-
-    loop {
-        match listener.accept() {
-            Ok((receiver, addr)) => {
-                let total = SystemTime::now();
-                println!("Garbler connected on {}", addr);
-                
-                if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, &modulus);
-                } else {
-                    output = run_circuit(&circ, receiver, &[], d*d, &modulus);
-                }
-    
-                println!("done: {:?}", output);
-                println!("Total: {} ms", total.elapsed().unwrap().as_millis());
+    match TcpStream::connect(EV_ADDR) {
+        Ok(sender) => {
+            println!("Successfully connected to evaluator on {}", EV_ADDR);
+            if gb_ev == "ev" {
+                run_circuit(&circ, sender, &[], d*d, &modulus, p_runs);
+            } else {
+                run_circuit(&circ, sender, &input, 0, &modulus, p_runs);
             }
-            Err(e) => println!("Connection failed: {}", e),
+            println!("Total: {} ms", total.elapsed().unwrap().as_millis());
+
         }
+        Err(e) => println!("Failed to connect to evaluator: {}", e)
     }
 
 
 }
+

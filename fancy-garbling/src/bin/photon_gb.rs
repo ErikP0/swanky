@@ -54,7 +54,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize) ->
     out
 }
 
-fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus) -> Vec<u16>{
+fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus) {
     let n_gb_inputs = gb_inputs.len();
 
     let rng = AesRng::new();
@@ -75,12 +75,11 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         start.elapsed().unwrap().as_millis()
     );
     let start = SystemTime::now();
-    let out = circ.eval(&mut gb, &xs, &ys).unwrap().unwrap();
+    circ.eval(&mut gb, &xs, &ys).unwrap();
     println!(
         "Garbler :: Circuit garbling: {} ms",
         start.elapsed().unwrap().as_millis()
     );
-    out
     
 }
 
@@ -90,7 +89,6 @@ fn main() {
     let gb_ev = &args[args.len()-1];
     let modulus; let circ;
     let d; let input;
-    let out;
 
     let total = SystemTime::now();
 
@@ -189,11 +187,10 @@ fn main() {
         Ok(sender) => {
             println!("Successfully connected to evaluator on {}", EV_ADDR);
             if gb_ev == "ev" {
-                out = run_circuit(&circ, sender, &[], d*d, &modulus);
+                run_circuit(&circ, sender, &[], d*d, &modulus);
             } else {
-                out = run_circuit(&circ, sender, &input, 0, &modulus);
+                run_circuit(&circ, sender, &input, 0, &modulus);
             }
-            println!("gb out: {:?}", out);
             println!("Total: {} ms", total.elapsed().unwrap().as_millis());
 
         }
