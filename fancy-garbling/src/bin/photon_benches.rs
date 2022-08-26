@@ -6,8 +6,8 @@ use fancy_garbling::{informer::{InformerStats, Informer},
                      Fancy, photon_bin::*, twopac::semihonest::{Garbler, Evaluator},
                     FancyInput};
 use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
-use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel, track_unix_channel_pair, TrackUnixChannel, TrackChannel};
-use std::time::{SystemTime,Duration};
+use scuttlebutt::{AesRng, UnixChannel, TrackUnixChannel, TrackChannel};
+use std::time::{SystemTime};
 use std::{
     io::{BufReader, BufWriter},
     os::unix::net::UnixStream,
@@ -23,37 +23,32 @@ type MyChannel = TrackChannel<Reader, Writer>;
 /// Inputs are encoded as constants in the circuit 
 
 fn main() {
-    const INPUT_GF: [u16;25] = [0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
-    const INPUT_BIN: [u8; 25] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
+    let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
+    let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
 
     // GF
-    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut CircuitBuilder::constant, 5, &INPUT_GF, &Modulus::GF4 { p: 19 });
-    let circ_gf_stats = informer(&circ_gf);
-    let circ_gf_bench = benchmark(&circ_gf, vec![], vec![]);
+    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut garbler_input, 5, &input_gf, &Modulus::GF4 { p: 19 });
+    let circ_gf_bench = benchmark(&circ_gf, input_gf, vec![]);
 
 
     // BIN
-    let circ_bin = build_circ_bin::<5, _,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut CircuitBuilder::constant, &INPUT_BIN, 4);
-    let circ_bin_stats = informer(&circ_bin);
-    let circ_bin_bench = benchmark(&circ_bin, vec![], vec![]);
+    let circ_bin = build_circ_bin::<5,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut garbler_input, &input_bin, 4);
+    let circ_bin_bench = benchmark(&circ_bin, encode_input_bin::<5>(input_bin, 4), vec![]);
 
-    println!("{}: \n {}", "* GF circuit stats".purple(), circ_gf_stats);
-    println!("{}: \n {}", "* BIN circuit stats".purple(), circ_bin_stats);
+    println!("{}","__________________________Circuitinfo______________________".yellow());
+    println!("{}:","* GF circuit info".purple());
+    circ_gf.print_info().unwrap();
+    println!("{}:","* BIN circuit info".purple());
+    circ_bin.print_info().unwrap();
     println!("{}","__________________________Benchdata______________________".yellow());
     println!("{}: \n {}","* GF circuit benchdata".purple(),circ_gf_bench);
     println!("{}: \n {}","* BIN circuit benchdata".purple(),circ_bin_bench);
 }
 
 
-fn informer(circ: &Circuit) -> InformerStats {
-    let mut inf = Informer::new(Dummy::new()); 
-    circ.eval(&mut inf, &[], &[]).unwrap(); 
-    inf.stats()
-}
 
 
-
-// Function to measure data transfer + computing time for a given circuit
+// STREAMING: Function to measure data transfer + computing time for a given circuit
 fn benchmark(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchData {
     let mut benchdata = BenchData::new();
     let poly = circ.modulus(0);
@@ -84,7 +79,7 @@ fn benchmark(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchD
         let time_circ_garbling = start.elapsed().unwrap().as_millis();
         let gb_channel = gb.get_channel();
         let mem_gb_total_read = gb_channel.kilobytes_read();
-        let mem_gb_total_written = gb_channel.kilobytes_read();
+        let mem_gb_total_written = gb_channel.kilobytes_written();
 
 
         (time_enc_gb,time_circ_garbling,mem_gb_total_read,mem_gb_total_written)
@@ -109,7 +104,7 @@ fn benchmark(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchD
     
     let ev_channel = ev.get_channel();
     benchdata.mem_ev_total_read = ev_channel.kilobytes_read();
-    benchdata.mem_ev_total_written = ev_channel.kilobits_written();
+    benchdata.mem_ev_total_written = ev_channel.kilobytes_written();
 
 
     (benchdata.time_gb_encode_inputs,
@@ -126,6 +121,8 @@ fn benchmark(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchD
     benchdata
 }
 
+
+
 fn build_circ_gf<P,F>(photon: &mut P, fcn_input: &mut F, d: usize, input: &[u16], poly: &Modulus) -> Circuit 
     where P: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, <CircuitBuilder as Fancy>::Error>,
           F: FnMut(&mut CircuitBuilder, u16, &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
@@ -138,7 +135,7 @@ fn build_circ_gf<P,F>(photon: &mut P, fcn_input: &mut F, d: usize, input: &[u16]
     b.finish()
 }
 
-fn build_circ_bin<const D: usize, P,F>(photon: &mut P, fcn_input: &mut F, input: &[u8], n: usize) -> Circuit
+fn build_circ_bin<const D: usize, P,F>(photon: &mut P, fcn_input: &mut F, input: &[u16], n: usize) -> Circuit
     where P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Vec<Vec<CircuitRef>>>, <CircuitBuilder as Fancy>::Error>,
           F: FnMut(&mut CircuitBuilder, u16, &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
     let mut b = CircuitBuilder::new();
@@ -161,8 +158,8 @@ fn evaluator_input(b: &mut CircuitBuilder, _val: u16, modulus: &Modulus) -> Resu
 }
 
 
-fn fill_nbit<F, T, const D: usize>(bytes: &[u8], f: &mut F, n :usize) -> Vec<Vec<Vec<T>>>
-    where F: FnMut(u8) -> T {
+fn fill_nbit<F, T, const D: usize>(bytes: &[u16], f: &mut F, n :usize) -> Vec<Vec<Vec<T>>>
+    where F: FnMut(u16) -> T {
         assert_eq!(bytes.len(), D*D);
         let mut v = Vec::with_capacity(D);
         let mut cnt = 0;
@@ -179,6 +176,10 @@ fn fill_nbit<F, T, const D: usize>(bytes: &[u8], f: &mut F, n :usize) -> Vec<Vec
         }
         return v;
     }
+
+fn encode_input_bin<const D: usize>(input: Vec<u16>, n: usize) -> Vec<u16>{
+    fill_nbit::<_, _, D>(&input, &mut |i| i,n).into_iter().flatten().flatten().collect()
+}
 
 pub struct BenchData {
     time_gb_encode_inputs: u128,
@@ -275,7 +276,7 @@ impl BenchData {
 impl std::fmt::Display for BenchData {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let unit_t: &str = "ms";
-        let unit_mem: &str = "kbits";
+        let unit_mem: &str = "Kb";
         
         writeln!(f, "{}", "Benchdata".green())?;
         writeln!(f, "  Time garbler encoding :      {:16} {}", self.time_gb_enc(), unit_t)?;
