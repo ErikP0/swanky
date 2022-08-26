@@ -8,6 +8,8 @@ use fancy_garbling::{
     twopac::semihonest::Evaluator,
     FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError,
 };
+use itertools::Itertools;
+use ndarray::ShapeArg;
 use ocelot::ot::AlszReceiver as OtReceiver;
 use scuttlebutt::{AesRng, Channel};
 use std::{
@@ -22,29 +24,39 @@ type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
 type MyChannel = Channel<Reader, Writer>;
 
-fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize) -> Circuit  where 
+fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sruns: usize, pruns: usize) -> Circuit  where 
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
-    let x = b.garbler_inputs(&vec![*poly; d*d]); 
-    let z = perm(&mut b, &x).unwrap();
-    b.outputs(&z).unwrap();
+    let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
+    xs.iter().for_each(|x| println!("len: {} {}", x.len(), pruns));
+    for x in xs.into_iter() {
+        let mut z = x;
+        for _ in 0..sruns {
+            z = perm(&mut b, &z).unwrap();
+        }
+        b.outputs(&z).unwrap();
+    }
     let out = b.finish();
     println!(
         "Evaluator :: Building circuit: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    out.print_info().unwrap();
     out
 }
 
-fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize) -> Circuit  where 
+fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, runs: usize) -> Circuit  where 
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let x = b.evaluator_inputs(&vec![*poly; d*d]); 
-    let z = perm(&mut b, &x).unwrap();
+    let mut z = x.clone();
+    for _ in 0..runs {
+        z = perm(&mut b, &z).unwrap();
+    }
     b.outputs(&z).unwrap();
     let out = b.finish();
     println!(
@@ -88,7 +100,9 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
 fn main() {
     let args: Vec<String> = env::args().collect();
     let perm_id = &args[1];
-    let gb_ev = &args[args.len()-1];
+    let gb_ev = &args[2];
+    let s_runs: usize = args[3].parse().unwrap();
+    let p_runs: usize = args[4].parse().unwrap();
     let modulus; let circ;
     let d; let input;
     let mut output;
@@ -99,10 +113,10 @@ fn main() {
             d = 5;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d);
+                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs, p_runs);
                 }
             input =   vec![0, 0 ,0, 0, 4,
                             0, 0, 0, 0, 1,
@@ -115,10 +129,10 @@ fn main() {
             d = 6;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d);
+                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs, p_runs);
                 }
             input = vec![0, 0 ,0, 0, 0, 2,
                           0, 0, 0, 0, 0, 0,
@@ -132,10 +146,10 @@ fn main() {
             d = 7;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d);
+                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs, p_runs);
                 }
             input = vec![0, 0 ,0, 0, 0, 0, 0,
                           0, 0, 0, 0, 0, 0, 2,
@@ -150,10 +164,10 @@ fn main() {
             d = 8;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d);
+                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs, p_runs);
                 }
             input = vec![0, 0 ,0, 0, 0, 0, 0, 0,
                             0, 0, 0, 0, 0, 0, 0, 0,
@@ -169,10 +183,10 @@ fn main() {
             d = 6;
             if gb_ev == "ev" {
                 circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d);
+                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs);
             } else {
                 circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d);
+                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs, p_runs);
                 }
             input = vec![0, 0 ,0, 0, 0, 0,
                             0, 0, 0, 0, 0, 0,

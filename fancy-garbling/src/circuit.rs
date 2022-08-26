@@ -218,10 +218,10 @@ impl Circuit {
             let r = cache[r.ix]
                 .as_ref()
                 .ok_or_else(|| F::Error::from(FancyError::UninitializedValue))?;
-            let out = f.reveal(r)?;
+            let out = f.output(r)?;
             outputs.push(out);
         }
-        Ok(Some(outputs))
+        Ok(outputs.into_iter().collect())
     }
 
     /// Evaluate the circuit in plaintext.
