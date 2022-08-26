@@ -16,7 +16,7 @@ use std::{
     time::{Duration, SystemTime}, env,
 };
 
-const EV_ADDR: &str = "192.168.1.2:9481";
+const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -198,7 +198,7 @@ fn main() {
                 } else {
                     output = run_circuit(&circ, receiver, &[], d*d, &modulus);
                 }
-    
+                // 
                 println!("done: {:?}", output);
                 println!("Total: {} ms", total.elapsed().unwrap().as_millis());
             }
