@@ -10,13 +10,13 @@ use fancy_garbling::{
 };
 use itertools::Itertools;
 use ocelot::ot::{AlszSender as OtSender};
-use scuttlebutt::{AesRng, Channel};
+use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
     io::{BufReader, BufWriter},
-    time::{Duration, SystemTime}, net::TcpStream, env,
+    time::SystemTime, net::TcpStream, env,
 };
 
-const EV_ADDR: &str = "10.2.33.45:9481";
+const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -28,8 +28,6 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
-    xs.iter().for_each(|x| println!("len: {}", x.len()));
-    // let x = b.garbler_inputs(&vec![*poly; d*d]); 
     for x in xs.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
@@ -52,8 +50,6 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
-    xs.iter().for_each(|x| println!("len: {}", x.len()));
-    // let x = b.garbler_inputs(&vec![*poly; d*d]); 
     for x in xs.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
@@ -69,7 +65,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     out
 }
 
-fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) {
+fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) -> Vec<u16> {
     let n_gb_inputs = gb_inputs.len();
 
     let rng = AesRng::new();
@@ -99,6 +95,12 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         "Garbler :: Circuit garbling: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    let out = (0..circ.noutputs()).map(|_| {
+        gb.get_channel().flush().unwrap();
+        let val = gb.get_channel().read_u16().unwrap();
+        val
+    }).collect_vec();
+    out
     
 }
 
@@ -110,6 +112,7 @@ fn main() {
     let p_runs: usize = args[4].parse().unwrap();
     let modulus; let circ;
     let d; let input;
+    let out;
 
     let total = SystemTime::now();
 
@@ -208,10 +211,11 @@ fn main() {
         Ok(sender) => {
             println!("Successfully connected to evaluator on {}", EV_ADDR);
             if gb_ev == "ev" {
-                run_circuit(&circ, sender, &[], d*d, &modulus, p_runs);
+                out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs);
             } else {
-                run_circuit(&circ, sender, &input, 0, &modulus, p_runs);
+                out = run_circuit(&circ, sender, &input, 0, &modulus, p_runs);
             }
+            println!("output: {:?}", out);
             println!("Total: {} ms", total.elapsed().unwrap().as_millis());
 
         }

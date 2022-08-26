@@ -9,13 +9,12 @@ use fancy_garbling::{
     FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError,
 };
 use itertools::Itertools;
-use ndarray::ShapeArg;
 use ocelot::ot::AlszReceiver as OtReceiver;
-use scuttlebutt::{AesRng, Channel};
+use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
     io::{BufReader, BufWriter},
     net::{TcpStream, TcpListener},
-    time::{Duration, SystemTime}, env,
+    time::SystemTime, env,
 };
 
 const EV_ADDR: &str = "0.0.0.0:9481";
@@ -30,7 +29,6 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
-    xs.iter().for_each(|x| println!("len: {} {}", x.len(), pruns));
     for x in xs.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
@@ -53,7 +51,6 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
-    xs.iter().for_each(|x| println!("len: {} {}", x.len(), pruns));
     for x in xs.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
@@ -100,7 +97,12 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
         "Evaluator :: Circuit evaluation: {} ms",
         start.elapsed().unwrap().as_millis()
     );
-    output.unwrap()
+    let out = output.unwrap().into_iter().map(|o| {
+        ev.get_channel().write_u16(o).unwrap();
+        ev.get_channel().flush().unwrap();
+        o
+    }).collect_vec();
+    out
 }
 
 
