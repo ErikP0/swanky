@@ -2,13 +2,21 @@ extern crate fancy_garbling;
 
 use fancy_garbling::{informer::{InformerStats, Informer},
                      circuit::{Circuit, CircuitBuilder, CircuitRef}, 
-                     dummy::Dummy, Modulus, photon::PhotonGadgets, 
-                     Fancy, photon_bin::PhotonFancyExt};
+                     dummy::Dummy, Modulus, photon::*, 
+                     Fancy, photon_bin::*, twopac::semihonest::{Garbler, Evaluator},
+                    FancyInput};
 use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
-use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
-use std::time::SystemTime;
+use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel, track_unix_channel_pair, TrackUnixChannel, TrackChannel};
+use std::time::{SystemTime,Duration};
+use std::{
+    io::{BufReader, BufWriter},
+    os::unix::net::UnixStream,
+};
 use colored::*;
 
+type Reader = BufReader<UnixStream>;
+type Writer = BufWriter<UnixStream>;
+type MyChannel = TrackChannel<Reader, Writer>;
 
 /// File to compare primitives/photon.rs (GF[2^4] or GF[2^8] arithmetic)
 /// and primitives/photon_bin.rs (Only uses AND/OR/XOR gates (GF[2]))
@@ -21,17 +29,19 @@ fn main() {
     // GF
     let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut CircuitBuilder::constant, 5, &INPUT_GF, &Modulus::GF4 { p: 19 });
     let circ_gf_stats = informer(&circ_gf);
+    let circ_gf_bench = benchmark(&circ_gf, vec![], vec![]);
+
 
     // BIN
     let circ_bin = build_circ_bin::<5, _,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut CircuitBuilder::constant, &INPUT_BIN, 4);
     let circ_bin_stats = informer(&circ_bin);
-
-
-
-
+    let circ_bin_bench = benchmark(&circ_bin, vec![], vec![]);
 
     println!("{}: \n {}", "* GF circuit stats".purple(), circ_gf_stats);
     println!("{}: \n {}", "* BIN circuit stats".purple(), circ_bin_stats);
+    println!("{}","__________________________Benchdata______________________".yellow());
+    println!("{}: \n {}","* GF circuit benchdata".purple(),circ_gf_bench);
+    println!("{}: \n {}","* BIN circuit benchdata".purple(),circ_bin_bench);
 }
 
 
@@ -41,12 +51,80 @@ fn informer(circ: &Circuit) -> InformerStats {
     inf.stats()
 }
 
+
+
 // Function to measure data transfer + computing time for a given circuit
-// fn benchmark<T>(circ: &Circuit) -> BenchData<T> {
+fn benchmark(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchData {
+    let mut benchdata = BenchData::new();
+    let poly = circ.modulus(0);
+    let circ_ = circ.clone();
 
 
+    let (sender, receiver) = UnixStream::pair().unwrap();
 
-// }
+    let n_gb_inputs = gb_inputs.len();
+    let n_ev_inputs = ev_inputs.len();
+
+    let total = SystemTime::now();
+    let handle = std::thread::spawn(move || {
+        let rng = AesRng::new();
+        let poly_ = circ_.modulus(0);
+
+        let reader = BufReader::new(sender.try_clone().unwrap());
+        let writer = BufWriter::new(sender);
+        let channel = TrackChannel::new(reader, writer);
+        let mut gb = Garbler::<MyChannel, AesRng, OtSender>::new(channel, rng).unwrap();
+       
+        let start = SystemTime::now();
+        let xs = gb.encode_many(&gb_inputs, &vec![poly_; n_gb_inputs]).unwrap();          // encoded garbler inputs - only W^0
+        let ys = gb.receive_many(&vec![poly_; n_ev_inputs]).unwrap();               // encoded evaluator inputs - only W^0
+        let time_enc_gb = start.elapsed().unwrap().as_millis(); 
+        let start = SystemTime::now();
+        circ_.eval(&mut gb, &xs, &ys).unwrap();
+        let time_circ_garbling = start.elapsed().unwrap().as_millis();
+        let gb_channel = gb.get_channel();
+        let mem_gb_total_read = gb_channel.kilobytes_read();
+        let mem_gb_total_written = gb_channel.kilobytes_read();
+
+
+        (time_enc_gb,time_circ_garbling,mem_gb_total_read,mem_gb_total_written)
+    });
+
+    let rng = AesRng::new();
+    let reader = BufReader::new(receiver.try_clone().unwrap());
+    let writer = BufWriter::new(receiver);
+    let channel = TrackChannel::new(reader, writer);
+    let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+
+
+    let start = SystemTime::now();
+    let xs = ev.receive_many(&vec![poly; n_gb_inputs]).unwrap();               // receive inputs in same order! moduli array ev == moduli array gb
+    let ys = ev.encode_many(&ev_inputs, &vec![poly; n_ev_inputs]).unwrap();
+    benchdata.time_ev_encode_inputs = start.elapsed().unwrap().as_millis(); 
+
+
+    let start = SystemTime::now();
+    let output = circ.eval(&mut ev, &xs, &ys).unwrap();
+    benchdata.time_circ_evaluating = start.elapsed().unwrap().as_millis();
+    
+    let ev_channel = ev.get_channel();
+    benchdata.mem_ev_total_read = ev_channel.kilobytes_read();
+    benchdata.mem_ev_total_written = ev_channel.kilobits_written();
+
+
+    (benchdata.time_gb_encode_inputs,
+        benchdata.time_circ_garbling,
+        benchdata.mem_gb_total_read,
+        benchdata.mem_gb_total_written) = handle.join().unwrap();
+    benchdata.total_time = total.elapsed().unwrap().as_millis();
+
+    benchdata.set_mem_total_read();
+    benchdata.set_mem_total_written();
+    benchdata.set_total_mem();
+
+    println!("OUTPUT: {:?}",output);
+    benchdata
+}
 
 fn build_circ_gf<P,F>(photon: &mut P, fcn_input: &mut F, d: usize, input: &[u16], poly: &Modulus) -> Circuit 
     where P: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, <CircuitBuilder as Fancy>::Error>,
@@ -102,11 +180,12 @@ fn fill_nbit<F, T, const D: usize>(bytes: &[u8], f: &mut F, n :usize) -> Vec<Vec
         return v;
     }
 
-struct BenchData<T: Default> {
-    time_gb_encode_inputs: T,
-    time_circ_garbling: T,
-    time_ev_encode_inputs: T,
-    time_circ_evaluating: T, 
+pub struct BenchData {
+    time_gb_encode_inputs: u128,
+    time_circ_garbling: u128,
+    time_ev_encode_inputs: u128,
+    time_circ_evaluating: u128,
+    total_time: u128,
     mem_gb_total_written: f64,
     mem_gb_total_read: f64,
     mem_ev_total_written: f64,
@@ -116,12 +195,13 @@ struct BenchData<T: Default> {
     total_mem: f64, 
 }
 
-impl<T: Default + Copy> BenchData<T> {
-    pub fn new() -> BenchData<T> {
-        BenchData  {time_gb_encode_inputs: T::default(), 
-                    time_ev_encode_inputs: T::default(), 
-                    time_circ_garbling: T::default(), 
-                    time_circ_evaluating: T::default(), 
+impl BenchData {
+    pub fn new() -> BenchData {
+        BenchData  {time_gb_encode_inputs: 0, 
+                    time_ev_encode_inputs: 0, 
+                    time_circ_garbling: 0, 
+                    time_circ_evaluating: 0,
+                    total_time: 0, 
                     mem_gb_total_written: 0.0, 
                     mem_gb_total_read: 0.0, 
                     mem_ev_total_written: 0.0, 
@@ -130,21 +210,37 @@ impl<T: Default + Copy> BenchData<T> {
                     mem_total_read: 0.0, 
                     total_mem: 0.0}
     }
+    pub fn set_mem_total_written(&mut self) {
+        self.mem_total_written = self.mem_gb_total_written + self.mem_ev_total_written;
+    }
+
+    pub fn set_mem_total_read(&mut self) {
+        self.mem_total_read = self.mem_gb_total_read + self.mem_ev_total_read;
+    }
+
+    pub fn set_total_mem(&mut self) {
+        self.total_mem = self.mem_total_written + self.mem_total_read;
+    }
+    
     /// Time for garbler to encode his inputs
-    pub fn time_gb_enc(&self) -> T {
+    pub fn time_gb_enc(&self) -> u128 {
         self.time_gb_encode_inputs
     }
 
-    pub fn time_ev_enc(&self) -> T {
+    pub fn time_ev_enc(&self) -> u128 {
         self.time_ev_encode_inputs
     }
 
-    pub fn time_circ_garbling(&self) -> T {
+    pub fn time_circ_garbling(&self) -> u128 {
         self.time_circ_garbling
     }
 
-    pub fn time_circ_evaluating(&self) -> T {
+    pub fn time_circ_evaluating(&self) -> u128 {
         self.time_circ_evaluating
+    }
+
+    pub fn total_time(&self) -> u128 {
+        self.total_time
     }
 
     pub fn mem_gb_written(&self) -> f64 {
@@ -176,7 +272,7 @@ impl<T: Default + Copy> BenchData<T> {
     }
 }
 
-impl<T: Default + std::fmt::Display + Copy> std::fmt::Display for BenchData<T> {
+impl std::fmt::Display for BenchData {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let unit_t: &str = "ms";
         let unit_mem: &str = "kbits";
@@ -185,7 +281,8 @@ impl<T: Default + std::fmt::Display + Copy> std::fmt::Display for BenchData<T> {
         writeln!(f, "  Time garbler encoding :      {:16} {}", self.time_gb_enc(), unit_t)?;
         writeln!(f, "  Time evaluator encoding :    {:16} {}", self.time_ev_enc(), unit_t)?;
         writeln!(f, "  Time circuit garbling :      {:16} {}", self.time_circ_garbling(), unit_t)?;
-        writeln!(f, "  Time circuit evaluating :    {:16} {} \n", self.time_circ_evaluating(), unit_t)?;
+        writeln!(f, "  Time circuit evaluating :    {:16} {}", self.time_circ_evaluating(), unit_t)?;
+        writeln!(f, "  Total time:                  {:16} {}", self.total_time(), unit_t)?;
         writeln!(f, "  Write memory garbler:        {:16} {}", self.mem_gb_written(),unit_mem)?;
         writeln!(f, "  Read memory garbler:         {:16} {}", self.mem_gb_read(),unit_mem)?;
         writeln!(f, "  Write memory Evaluator:      {:16} {}", self.mem_ev_written(),unit_mem)?;
