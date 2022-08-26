@@ -16,7 +16,7 @@ use std::{
     time::SystemTime, net::TcpStream, env,
 };
 
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
