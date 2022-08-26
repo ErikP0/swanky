@@ -5,16 +5,15 @@ extern crate fancy_garbling;
 // use criterion::{criterion_group, criterion_main, Criterion};
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
-    twopac::semihonest::{Evaluator, Garbler},
+    twopac::semihonest::Evaluator,
     FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError,
 };
-use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
-use scuttlebutt::{AesRng, Channel, SyncChannel};
+use ocelot::ot::AlszReceiver as OtReceiver;
+use scuttlebutt::{AesRng, Channel};
 use std::{
-    io::{BufReader, BufWriter, Read, Write},
-    os::unix::net::UnixStream,
-    net::{TcpStream, TcpListener, Shutdown},
-    time::Duration, env,
+    io::{BufReader, BufWriter},
+    net::{TcpStream, TcpListener},
+    time::{Duration, SystemTime}, env,
 };
 
 const EV_ADDR: &str = "127.0.0.1:9481";
@@ -26,22 +25,33 @@ type MyChannel = Channel<Reader, Writer>;
 fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize) -> Circuit  where 
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
+    let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let x = b.garbler_inputs(&vec![*poly; d*d]); 
-    // let z = b.photon_100(&x).unwrap();
     let z = perm(&mut b, &x).unwrap();
     b.outputs(&z).unwrap();
-    b.finish()
+    let out = b.finish();
+    println!(
+        "Evaluator :: Building circuit: {} ms",
+        start.elapsed().unwrap().as_millis()
+    );
+    out
 }
 
 fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize) -> Circuit  where 
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
+    let start = SystemTime::now();
     let mut b = CircuitBuilder::new();
     let x = b.evaluator_inputs(&vec![*poly; d*d]); 
     let z = perm(&mut b, &x).unwrap();
     b.outputs(&z).unwrap();
-    b.finish()
+    let out = b.finish();
+    println!(
+        "Evaluator :: Building circuit: {} ms",
+        start.elapsed().unwrap().as_millis()
+    );
+    out
 }
 
 fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus) 
@@ -52,10 +62,25 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
     let reader = BufReader::new(receiver.try_clone().unwrap());
     let writer = BufWriter::new(receiver);
     let channel = Channel::new(reader, writer);
+    let start = SystemTime::now();
     let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+    println!(
+        "Evaluator :: Initialization: {} ms",
+        start.elapsed().unwrap().as_millis()
+    );
+    let start = SystemTime::now();
     let xs = ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap();
     let ys = ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap();
+    println!(
+        "Evaluator :: Encoding inputs: {} ms",
+        start.elapsed().unwrap().as_millis()
+    );
+    let start = SystemTime::now();
     let output = circ.eval(&mut ev, &xs, &ys).unwrap();
+    println!(
+        "Evaluator :: Circuit evaluation: {} ms",
+        start.elapsed().unwrap().as_millis()
+    );
     output.unwrap()
 }
 
@@ -63,7 +88,7 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
 fn main() {
     let args: Vec<String> = env::args().collect();
     let perm_id = &args[1];
-    let gb_ev = &args[2];
+    let gb_ev = &args[args.len()-1];
     let modulus; let circ;
     let d; let input;
     let mut output;
@@ -72,11 +97,11 @@ fn main() {
         "100" => {
             modulus = Modulus::GF4 { p: 19 };
             d = 5;
-            if gb_ev == "gb" {
-                circ = build_photon_circuit_gb(&modulus, 
+            if gb_ev == "ev" {
+                circ = build_photon_circuit_ev(&modulus, 
                         move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d);
             } else {
-                circ = build_photon_circuit_ev(&modulus, 
+                circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d);
                 }
             input =   vec![0, 0 ,0, 0, 4,
@@ -88,11 +113,11 @@ fn main() {
         "144" => {
             modulus = Modulus::GF4 { p: 19 };
             d = 6;
-            if gb_ev == "gb" {
-                circ = build_photon_circuit_gb(&modulus, 
+            if gb_ev == "ev" {
+                circ = build_photon_circuit_ev(&modulus, 
                         move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d);
             } else {
-                circ = build_photon_circuit_ev(&modulus, 
+                circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d);
                 }
             input = vec![0, 0 ,0, 0, 0, 2,
@@ -105,11 +130,11 @@ fn main() {
         "196" => {
             modulus = Modulus::GF4 { p: 19 };
             d = 7;
-            if gb_ev == "gb" {
-                circ = build_photon_circuit_gb(&modulus, 
+            if gb_ev == "ev" {
+                circ = build_photon_circuit_ev(&modulus, 
                         move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d);
             } else {
-                circ = build_photon_circuit_ev(&modulus, 
+                circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d);
                 }
             input = vec![0, 0 ,0, 0, 0, 0, 0,
@@ -123,11 +148,11 @@ fn main() {
         "256" => {
             modulus = Modulus::GF4 { p: 19 };
             d = 8;
-            if gb_ev == "gb" {
-                circ = build_photon_circuit_gb(&modulus, 
+            if gb_ev == "ev" {
+                circ = build_photon_circuit_ev(&modulus, 
                         move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d);
             } else {
-                circ = build_photon_circuit_ev(&modulus, 
+                circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d);
                 }
             input = vec![0, 0 ,0, 0, 0, 0, 0, 0,
@@ -142,11 +167,11 @@ fn main() {
         "288" => {
             modulus = Modulus::GF8 { p: 283 };
             d = 6;
-            if gb_ev == "gb" {
-                circ = build_photon_circuit_gb(&modulus, 
+            if gb_ev == "ev" {
+                circ = build_photon_circuit_ev(&modulus, 
                         move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d);
             } else {
-                circ = build_photon_circuit_ev(&modulus, 
+                circ = build_photon_circuit_gb(&modulus, 
                     move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d);
                 }
             input = vec![0, 0 ,0, 0, 0, 0,
@@ -165,15 +190,17 @@ fn main() {
     loop {
         match listener.accept() {
             Ok((receiver, addr)) => {
+                let total = SystemTime::now();
                 println!("Garbler connected on {}", addr);
                 
-                if gb_ev == "gb" {
-                    output = run_circuit(&circ, receiver, &[], d*d, &modulus);
-                } else {
+                if gb_ev == "ev" {
                     output = run_circuit(&circ, receiver, &input, 0, &modulus);
+                } else {
+                    output = run_circuit(&circ, receiver, &[], d*d, &modulus);
                 }
                 // 
                 println!("done: {:?}", output);
+                println!("Total: {} ms", total.elapsed().unwrap().as_millis());
             }
             Err(e) => println!("Connection failed: {}", e),
         }
