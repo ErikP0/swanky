@@ -63,15 +63,17 @@ fn main() {
                                 0, 0 ,0, 1, 0];
     let x4_x_1 = Modulus::GF4 { p: 19 };
 
+    let circ = build_photon_circuit_ev(&x4_x_1);
+    // let circ = build_photon_circuit_gb(&x4_x_1);
+
     let listener = TcpListener::bind(EV_ADDR).unwrap();
     println!("Evaluator listening on {}", EV_ADDR);
 
     loop {
         match listener.accept() {
-            Ok((mut receiver, addr)) => {
+            Ok((receiver, addr)) => {
                 println!("Garbler connected on {}", addr);
 
-                let circ = build_photon_circuit_ev(&x4_x_1);
                 // let output = run_circuit(&circ, receiver, &[], 25, &x4_x_1);
                 let output = run_circuit(&circ, receiver, input, 0, &x4_x_1);
                 println!("done: {:?}", output);

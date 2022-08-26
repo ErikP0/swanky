@@ -28,6 +28,7 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize) -> 
     {
     let mut b = CircuitBuilder::new();
     let x = b.garbler_inputs(&vec![*poly; d*d]); 
+    // let z = b.photon_100(&x).unwrap();
     let z = perm(&mut b, &x).unwrap();
     b.outputs(&z).unwrap();
     b.finish()
@@ -54,7 +55,6 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
     let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
     let xs = ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap();
     let ys = ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap();
-    circ.print_info();
     let output = circ.eval(&mut ev, &xs, &ys).unwrap();
     output.unwrap()
 }
@@ -141,7 +141,7 @@ fn main() {
                 println!("Garbler connected on {}", addr);
 
                 // let output = run_circuit(&circ, receiver, &[], d*d, &modulus);
-                let output = run_circuit(&circ, receiver, &input, 0, &modulus);
+                let output = run_circuit(&circ, receiver, &[], 25, &modulus);
                 println!("done: {:?}", output);
             }
             Err(e) => println!("Connection failed: {}", e),
