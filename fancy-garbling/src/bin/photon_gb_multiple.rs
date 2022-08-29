@@ -12,11 +12,12 @@ use itertools::Itertools;
 use ocelot::ot::{AlszSender as OtSender};
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
-    io::{BufReader, BufWriter},
-    time::SystemTime, net::TcpStream, env,
+    io::{BufReader, BufWriter, Write},
+    time::SystemTime, net::TcpStream, env, fs, fmt::write, path::Path,
 };
 
-const EV_ADDR: &str = "10.2.33.45:9481";
+// const EV_ADDR: &str = "10.2.33.45:9481";
+const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -26,6 +27,11 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
     for x in xs.into_iter() {
@@ -37,9 +43,14 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     }
     let out = b.finish();
     println!(
-        "Garbler :: Building circuit: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
     );
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+    ).unwrap();
     out
     
 }
@@ -59,14 +70,20 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     }
     let out = b.finish();
     println!(
-        "Garbler :: Building circuit: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
     );
     out
 }
 
 fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) -> Vec<u16> {
     let n_gb_inputs = gb_inputs.len();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
 
     let rng = AesRng::new();
     let reader = BufReader::new(sender.try_clone().unwrap());
@@ -78,6 +95,9 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         "Garbler :: Initialization: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file, "Garbler :: Initialization: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
@@ -89,12 +109,19 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         "Garbler :: Encoding inputs: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file, "Garbler :: Encoding inputs: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let start = SystemTime::now();
     circ.eval(&mut gb, &xs, &ys).unwrap();
     println!(
         "Garbler :: Circuit garbling: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file,
+        "Garbler :: Circuit garbling: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let out = (0..circ.noutputs()).map(|_| {
         gb.get_channel().flush().unwrap();
         let val = gb.get_channel().read_u16().unwrap();
@@ -113,9 +140,19 @@ fn main() {
     let modulus; let circ;
     let d; let input;
     let out;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create_new(!Path::new("./helper_test_files/output_TCP_log.txt").exists())
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
 
     let total = SystemTime::now();
 
+    write!(file, "--- GARBLER START: {} permutation(s) in series ---
+                   {} permutation(s) in parallel
+---           PHOTON{}                ---\n\n",
+                s_runs, p_runs, perm_id).unwrap();
     match perm_id.as_ref() {
         "100" => {
             modulus = Modulus::GF4 { p: 19 };
@@ -206,7 +243,6 @@ fn main() {
         },
         &_ => panic!("Command line argument is not a right permutation ID!")
     }
-
     match TcpStream::connect(EV_ADDR) {
         Ok(sender) => {
             println!("Successfully connected to evaluator on {}", EV_ADDR);
@@ -218,7 +254,10 @@ fn main() {
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();
             println!("Total: {} ms", tot);
-            println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64))
+            println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64));
+            write!(file, "Garbler :: Total: {} ms\n 
+                          Average computing time / permutation: {} ms\n
+--------------------------------------", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
 
         }
         Err(e) => println!("Failed to connect to evaluator: {}", e)

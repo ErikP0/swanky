@@ -12,9 +12,9 @@ use itertools::Itertools;
 use ocelot::ot::AlszReceiver as OtReceiver;
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
-    io::{BufReader, BufWriter},
+    io::{BufReader, BufWriter, Write},
     net::{TcpStream, TcpListener},
-    time::SystemTime, env,
+    time::SystemTime, env, fs, path::Path,
 };
 
 const EV_ADDR: &str = "0.0.0.0:9481";
@@ -27,6 +27,11 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
     for x in xs.into_iter() {
@@ -38,9 +43,15 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     }
     let out = b.finish();
     println!(
-        "Evaluator :: Building circuit: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Building circuit: {} ms\n
+                       Per permutation: {} ms\n",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
     );
+    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+    ).unwrap();
     out.print_info().unwrap();
     out
 }
@@ -49,6 +60,11 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
     for x in xs.into_iter() {
@@ -60,15 +76,27 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     }
     let out = b.finish();
     println!(
-        "Evaluator :: Building circuit: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Building circuit: {} ms\n
+                       Per permutation: {} ms",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
     );
+    write!(file, "Evaluator :: Building circuit: {} ms\n
+Per permutation: {} ms\n",
+        start.elapsed().unwrap().as_millis(),
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+    ).unwrap();
     out
 }
 
 fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
 
     let rng = AesRng::new();
     let reader = BufReader::new(receiver.try_clone().unwrap());
@@ -80,6 +108,10 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
         "Evaluator :: Initialization: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file,
+        "Evaluator :: Initialization: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
@@ -91,12 +123,20 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
         "Evaluator :: Encoding inputs: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file,
+        "Evaluator :: Encoding inputs: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let start = SystemTime::now();
     let output = circ.eval(&mut ev, &xs, &ys).unwrap();
     println!(
         "Evaluator :: Circuit evaluation: {} ms",
         start.elapsed().unwrap().as_millis()
     );
+    write!(file,
+        "Evaluator :: Circuit evaluation: {} ms\n",
+        start.elapsed().unwrap().as_millis()
+    ).unwrap();
     let out = output.unwrap().into_iter().map(|o| {
         ev.get_channel().write_u16(o).unwrap();
         ev.get_channel().flush().unwrap();
@@ -115,6 +155,18 @@ fn main() {
     let modulus; let circ;
     let d; let input;
     let mut output;
+    let pre = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(!Path::new("./helper_test_files/output_TCP_log.txt").exists())
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
+
+    write!(file, "--- EVALUATOR START: {} permutation(s) in series ---
+                   {} permutation(s) in parallel
+---           PHOTON{}                ---\n\n",
+                s_runs, p_runs, perm_id).unwrap();
 
     match perm_id.as_ref() {
         "100" => {
@@ -210,6 +262,7 @@ fn main() {
     let listener = TcpListener::bind(EV_ADDR).unwrap();
     println!("Evaluator listening on {}", EV_ADDR);
 
+    let pre_tot = pre.elapsed().unwrap().as_millis();
     loop {
         match listener.accept() {
             Ok((receiver, addr)) => {
@@ -225,7 +278,9 @@ fn main() {
                 println!("done: {:?}", output);
                 let tot = total.elapsed().unwrap().as_millis();
                 println!("Total: {} ms", tot);
-                println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64))
+                println!("Average computing time / permutation: {} ms", ((tot + pre_tot) as f64)/((s_runs + p_runs) as f64));
+                write!(file, "Evaluator :: Total: {} ms\n 
+                              Average computing time / permutation: {} ms\n\n\n", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
             }
             Err(e) => println!("Connection failed: {}", e),
         }
