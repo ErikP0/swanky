@@ -7,7 +7,7 @@ use fancy_garbling::{informer::{InformerStats, Informer},
                     FancyInput, classic::garble};
 use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
 use scuttlebutt::{AesRng, UnixChannel, TrackUnixChannel, TrackChannel};
-use std::time::{SystemTime};
+use std::{time::{SystemTime}, vec};
 use std::{
     io::{BufReader, BufWriter},
     os::unix::net::UnixStream,
@@ -20,22 +20,49 @@ type MyChannel = TrackChannel<Reader, Writer>;
 
 /// File to compare primitives/photon.rs (GF[2^4] or GF[2^8] arithmetic)
 /// and primitives/photon_bin.rs (Only uses AND/OR/XOR gates (GF[2]))
-/// Inputs are encoded as constants in the circuit 
+/// Inputs can be encoded as constants/garbler_inputs/evaluater_inputs in the circuit 
 
 fn main() {
-    let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
-    let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
+    const X4_X_1: u8 = 19;
+    let poly: Modulus = Modulus::GF4 { p: X4_X_1 };
+
+    let sruns = 20;
+    let pruns = 20;
+
+    // INPUT photon100
+    // let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
+    // let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
+    // const D: usize = 5;
+
+    // INPUT photon144 
+    // let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 1, 0, 0 ,0, 0, 0, 0, 0, 0 ,0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+    // let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,1,0];
+    // const D: usize = 6;
+    
+    // INPUT photon196
+    // let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0 ,0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 2, 0, 0 ,0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 4];
+    // let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,2,8,2,4,2,4];
+    // const D: usize = 7;
+
+    // INPUT photon256
+    let input_gf: Vec<u16> =vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
+    let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,3,8,2,0,2,0];
+    const D: usize = 8;
+
+
 
     // GF
-    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut garbler_input, 5, &input_gf, &Modulus::GF4 { p: 19 });
+    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_256, &mut garbler_input, D, &input_gf, &poly);
+    let circ_gf_extended = build_extended_circuit_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_256, &mut CircuitBuilder::constant, D, &input_gf, &poly, sruns, pruns);
     let circ_gf_bench = benchmark_streaming(&circ_gf, input_gf.clone(), vec![]);
-    let circ_gf_bench_ns = benchmark_non_streaming(&circ_gf, input_gf, vec![]);
+    let eval_time_gf = benchmark_non_streaming(&circ_gf_extended, vec![], vec![]);
 
 
     // BIN
-    let circ_bin = build_circ_bin::<5,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut garbler_input, &input_bin, 4);
-    let circ_bin_bench = benchmark_streaming(&circ_bin, encode_input_bin::<5>(input_bin.clone(), 4), vec![]);
-    let circ_bin_bench_ns = benchmark_non_streaming(&circ_bin, encode_input_bin::<5>(input_bin, 4), vec![]);
+    let circ_bin = build_circ_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut garbler_input, &input_bin, 4);
+    let circ_bin_extended = build_extended_circuit_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut CircuitBuilder::constant, &input_bin, 4, sruns, pruns);
+    let circ_bin_bench = benchmark_streaming(&circ_bin, encode_input_bin::<D>(input_bin.clone(), 4), vec![]);
+    let eval_time_bin = benchmark_non_streaming(&circ_bin_extended, vec![], vec![]);
 
     println!("{}","__________________________Circuitinfo______________________________".yellow());
     println!("{}:","* GF circuit info".purple());
@@ -45,9 +72,9 @@ fn main() {
     println!("{}","__________________________STREAMING-Benchdata______________________".yellow());
     println!("{}: \n {}","* GF circuit".purple(),circ_gf_bench);
     println!("{}: \n {}","* BIN circuit".purple(),circ_bin_bench);
-    println!("{}","________________________NON-STREAMING-Benchdata______________________".yellow());
-    println!("{}: \n {}","* GF circuit".purple(),circ_gf_bench_ns);
-    println!("{}: \n {}","* BIN circuit".purple(),circ_bin_bench_ns);
+    println!("{}","______________________Evaluating time (nonstreaming)_______________".yellow());
+    println!("{}: \n {} {}","* GF circuit".purple(),(eval_time_gf as f64)/((sruns*pruns) as f64),"μs" );
+    println!("{}: \n {} {}","* BIN circuit".purple(),(eval_time_bin as f64)/((sruns*pruns) as f64),"μs");
 
 }
 
@@ -123,40 +150,31 @@ fn benchmark_streaming(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>)
     benchdata.set_mem_total_written();
     benchdata.set_total_mem();
 
-    println!("OUTPUT: {:?}",output);
+    //println!("OUTPUT: {:?}",output);
     benchdata
 }
-
-fn benchmark_non_streaming(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> BenchData {
-    let mut benchdata = BenchData::new("μs","kB");
-
-    let start = SystemTime::now();
+// Non-streaming benchmark to measure evaluating time of circuit. 
+// The streaming benchmark can't measure this time because it is constantly waiting for the garbled circuit.
+fn benchmark_non_streaming(circ: &Circuit, gb_inputs: Vec<u16>, ev_inputs: Vec<u16>) -> u128 {
     let (en,ev) = garble(&circ).unwrap();
-    benchdata.time_circ_garbling = start.elapsed().unwrap().as_micros();
 
-    let start = SystemTime::now();
+    
     let xs = &en.encode_garbler_inputs(&gb_inputs);
-    benchdata.time_gb_encode_inputs = start.elapsed().unwrap().as_micros();
-
-    let start = SystemTime::now();
     let ys = &en.encode_evaluator_inputs(&ev_inputs);
-    benchdata.time_ev_encode_inputs = start.elapsed().unwrap().as_micros();
+    
 
     // Run the garbled circuit evaluator.
     let start = SystemTime::now();
     let decoded = &ev.eval(&circ, xs, ys).unwrap();
-    benchdata.time_circ_evaluating = start.elapsed().unwrap().as_micros();
+    let evaluating_time = start.elapsed().unwrap().as_micros();
 
-    println!("Decoded: {:?}",decoded);
-
-
+    //println!("Decoded: {:?}",decoded);
     // Run Dummy 
     let correct_output = circ.eval_plain(&gb_inputs, &ev_inputs);
-    println!("Correct_output: {:?}",correct_output);
+    //println!("Correct_output: {:?}",correct_output);
 
 
-    benchdata
-
+    evaluating_time
 }
 
 
@@ -180,6 +198,36 @@ fn build_circ_bin<const D: usize, P,F>(photon: &mut P, fcn_input: &mut F, input:
     let input_wires = fill_nbit::<_, _, D>(input, &mut |i| fcn_input(&mut b, i as u16, &Modulus::Zq { q: 2 }).unwrap(),n);
     let output_wires: Vec<_> = photon(&mut b, input_wires).unwrap().into_iter().flatten().flatten().collect();
     b.outputs(&output_wires).unwrap();
+    b.finish()
+}
+
+fn build_extended_circuit_gf<P,F>(photon: &mut P, fcn_input: &mut F, d: usize, input: &[u16], poly: &Modulus, sruns: usize, pruns: usize) -> Circuit  
+    where  P: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, <CircuitBuilder as Fancy>::Error>,
+           F: FnMut(&mut CircuitBuilder, u16, &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
+    let mut b = CircuitBuilder::new();
+    let input_wires: Vec<Vec<CircuitRef>> = (0..pruns).map(|_| input.iter().map(|i| fcn_input(&mut b, *i, poly).unwrap()).collect()).collect();
+    for x in input_wires.into_iter() {
+        let mut z = x;
+        for _ in 0..sruns {
+            z = photon(&mut b, &z).unwrap();
+        }
+        b.outputs(&z).unwrap();
+    }
+    b.finish()
+}
+
+fn build_extended_circuit_bin<const D: usize,P,F>(photon: &mut P, fcn_input: &mut F, input: &[u16], n:usize, sruns: usize, pruns: usize) -> Circuit  
+    where  P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Vec<Vec<CircuitRef>>>, <CircuitBuilder as Fancy>::Error>,
+           F: FnMut(&mut CircuitBuilder, u16, &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
+    let mut b = CircuitBuilder::new();
+    let input_wires: Vec<Vec<Vec<Vec<CircuitRef>>>> = (0..pruns).map(|_| fill_nbit::<_, _, D>(input, &mut |i| fcn_input(&mut b, i as u16, &Modulus::Zq { q: 2 }).unwrap(),n)).collect();
+    for x in input_wires.into_iter() {
+        let mut z = x;
+        for _ in 0..sruns {
+            z = photon(&mut b, z).unwrap();
+        }
+        b.outputs(&z.into_iter().flatten().flatten().collect::<Vec<_>>()).unwrap();
+    }
     b.finish()
 }
 
@@ -218,6 +266,7 @@ fn fill_nbit<F, T, const D: usize>(bytes: &[u16], f: &mut F, n :usize) -> Vec<Ve
 fn encode_input_bin<const D: usize>(input: Vec<u16>, n: usize) -> Vec<u16>{
     fill_nbit::<_, _, D>(&input, &mut |i| i,n).into_iter().flatten().flatten().collect()
 }
+
 
 pub struct BenchData {
     unit_t: String,
