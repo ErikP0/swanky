@@ -223,7 +223,9 @@ fn main() {
                 }
     
                 println!("done: {:?}", output);
-                println!("Total: {} ms", total.elapsed().unwrap().as_millis());
+                let tot = total.elapsed().unwrap().as_millis();
+                println!("Total: {} ms", tot);
+                println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64))
             }
             Err(e) => println!("Connection failed: {}", e),
         }
