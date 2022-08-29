@@ -438,7 +438,7 @@ mod photon_test {
         Wire, Evaluator, Garbler, util::RngExt, twopac,
     };
     #[test]
-    fn photon80_du() {
+    fn photon100_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 4,
                                           0, 0, 0, 0, 1,
                                           0, 0 ,0, 0, 4,
@@ -460,7 +460,7 @@ mod photon_test {
     }
 
     #[test]
-    fn photon128_du() {
+    fn photon144_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 2,
                                           0, 0, 0, 0, 0, 0,
                                           0, 0 ,0, 0, 0, 1,
@@ -487,7 +487,7 @@ mod photon_test {
 
 
     #[test]
-    fn photon160_du() {
+    fn photon196_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0,
                                           0, 0, 0, 0, 0, 0, 2,
                                           0, 0 ,0, 0, 0, 0, 8,
@@ -516,7 +516,7 @@ mod photon_test {
 
 
     #[test]
-    fn photon192_du() {
+    fn photon196_du2() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0, 3,
                                 0, 0 ,0, 0, 0, 0, 0,
@@ -545,7 +545,7 @@ mod photon_test {
 
 
     #[test]
-    fn photon224_du() {
+    fn photon256_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 0, 0, 0,
                                           0, 0, 0, 0, 0, 0, 0, 0,
                                           0, 0 ,0, 0, 0, 0, 0, 3,
@@ -576,7 +576,7 @@ mod photon_test {
 
 
     #[test]
-    fn photon256_du() {
+    fn photon288_du() {
         let init_state_m = vec!(0, 0 ,0, 0, 0, 0,
                                 0, 0, 0, 0, 0, 0,
                                 0, 0 ,0, 0, 0, 0,
@@ -605,7 +605,7 @@ mod photon_test {
     // Builds photon circuit with circuitbuilder and evaluate it 
     // with the eval_plain function
     #[test]
-    fn circuit_photon80() {
+    fn circuit_photon100() {
         // let Z: &[u16] = &[1, 2, 9, 9, 2];
         // let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
@@ -637,7 +637,7 @@ mod photon_test {
     }
 
     #[test]
-    fn circuit_photon160() {
+    fn circuit_photon196() {
         // let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
         // let ics = &[0, 1, 2, 5, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
@@ -674,7 +674,7 @@ mod photon_test {
     }
 
     #[test]
-    fn circuit_photon256() {
+    fn circuit_photon288() {
         // let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
         // let ics = &[0, 1, 3, 7, 6, 4];
         let x8_x4_x3_x_1 = Modulus::GF8 { p: 283 };
@@ -710,7 +710,7 @@ mod photon_test {
 
 
     #[test]
-    fn forward_backward_permutation_80() {
+    fn forward_backward_permutation_100() {
         let Z: &[u16] = &[1, 2, 9, 9, 2];
         let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
@@ -737,7 +737,7 @@ mod photon_test {
     }
 
     #[test]
-    fn backward_80() {
+    fn backward_100() {
         let init_state: Vec<u16> = vec!(3, 6, 5, 6, 0xb,
             3, 2, 0xc, 5, 7,
             0xd, 9, 4, 0xc, 7,
