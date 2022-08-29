@@ -1,0 +1,27 @@
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   1 permutation(s) in parallel
+---           PHOTON288                ---
+
+Evaluator :: Building circuit: 23 ms
+Per permutation: 7.666666666666667 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   1 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 21 ms
+Per permutation: 7 ms
+Garbler :: Initialization: 227 ms
+Evaluator :: Initialization: 228 ms
+Evaluator :: Encoding inputs: 0 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Circuit garbling: 3730 ms
+Evaluator :: Circuit evaluation: 3766 ms
+Garbler :: Total: 4018 ms
+ 
+                          Average computing time / permutation: 2009 ms
+
+--------------------------------------Evaluator :: Total: 3998 ms
+ 
+                              Average computing time / permutation: 1332.6666666666667 ms
+
+
