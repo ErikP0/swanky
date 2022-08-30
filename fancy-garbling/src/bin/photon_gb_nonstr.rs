@@ -31,7 +31,7 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
@@ -43,14 +43,15 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns + sruns) as f64
     );
     write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns + sruns) as f64
     ).unwrap();
     out
     
@@ -70,10 +71,11 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns + sruns) as f64
     );
     out
 }
@@ -83,46 +85,82 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
-
+    
     let mut rng = AesRng::new();
     let reader = BufReader::new(sender.try_clone().unwrap());
     let writer = BufWriter::new(sender.try_clone().unwrap());
-    let mut channel = Channel::new(reader, writer);
-    let start = SystemTime::now();
+    let mut channel = MyChannel::new(reader, writer);
     
+    let start = SystemTime::now();
     let (en,gbc) = garble(&circ).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
+    println!(
+        "Garbler :: Garbling circuit: {} ms",
+        timing
+    );
+    write!(file, "Garbler :: Garbling circuit: {} ms\n",
+        timing
+    ).unwrap();
 
+    let start = SystemTime::now();
     let gbc_ser = serde_json::to_string(&gbc).unwrap();
-    sender.try_clone().unwrap().write(gbc_ser.as_bytes());
+    println!("Size garbled circuit = {} bytes", gbc_ser.as_bytes().len());
+    sender.write_all(&gbc_ser.as_bytes().len().to_le_bytes()).unwrap();
+    sender.try_clone().unwrap().write_all(gbc_ser.as_bytes()).unwrap();
     sender.flush().unwrap();
-
-    let encoded_gb = en.encode_garbler_inputs(gb_inputs);
+    let timing = start.elapsed().unwrap().as_millis();
+    println!(
+        "Garbler :: Parsing & sending garbled circuit: {} ms",
+        timing
+    );
+    write!(file, "Garbler :: Parsing & sending garbled circuit: {} ms\n",
+        timing
+    ).unwrap();
+    
+    let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
+    let start = SystemTime::now();
+    let mut gbs = vec![0; p_runs*n_gb_inputs];
+    (0..p_runs*n_gb_inputs).for_each(|i| gbs[i] = gb_inputs[i % n_gb_inputs]);
+    let encoded_gb = en.encode_garbler_inputs(&gbs);
     encoded_gb.iter().for_each(|wire| channel.write_block(&wire.as_block()).unwrap());
 
-    let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs]);
+    let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs*p_runs]);
 
-    let mut inputs = Vec::with_capacity(n_ev_inputs*(modulus.size() as f32).log2() as usize);
-    let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
-    let mut wire = Wire::zero(modulus);
+    let mut inputs = Vec::with_capacity(p_runs*n_ev_inputs*(modulus.size() as f32).log2() as usize);
+    let mut wire = Wire::default(); let mut delta = Wire::default();
 
-    for _ in 0..n_ev_inputs {    
-        wire = Wire::zero(modulus);
-        let input = (0..n_ev_inputs)
-            .map(|i| {
-                let zero = zero_ev[i].clone();
-                let one = en.encode_evaluator_input(1, i);
-                wire = wire.plus(&zero.cmul(1 << i));   // see 7.1 in paper for binary representation labels
-                (zero.as_block(), one.as_block())
-            })
-            .collect::<Vec<(Block, Block)>>();
-        for i in input.into_iter() {
-            inputs.push(i);
+    for run in 0..p_runs {
+        inputs.clear();
+        for i in 0..n_ev_inputs {    
+            wire = zero_ev[i + run*n_ev_inputs].clone();
+            delta = en.encode_evaluator_input(1, i + run*n_ev_inputs).negate().plus(&zero_ev[i + run*n_ev_inputs]);
+            let input = (0..(modulus.size() as f32).log2() as usize)
+                .map(|i| {
+                    let zero = if i > 0{
+                        Wire::rand(&mut rng, modulus)
+                    } else {wire.clone()};
+                    let one = zero.plus(&delta);
+                    wire = wire.plus(&zero.cmul(1 << i));   // see 7.1 in paper for binary representation labels
+                    (zero.as_block(), one.as_block())
+                }).rev()
+                .collect::<Vec<(Block, Block)>>();
+            for i in input.into_iter().rev() {
+                inputs.push(i);
+            }
         }
+        ot.send(&mut channel, &inputs, &mut rng).unwrap();
     }
-
-    ot.send(&mut channel, &inputs, &mut rng).unwrap();
+    
+    let timing = start.elapsed().unwrap().as_millis();
+    println!(
+        "Garbler :: Encoding & sending inputs with OT: {} ms",
+        timing
+    );
+    write!(file, "Garbler :: Encoding & sending inputs with OT: {} ms\n",
+        timing
+    ).unwrap();
 
     let out = (0..circ.noutputs()).map(|_| {
         channel.flush().unwrap();
@@ -145,8 +183,8 @@ fn main() {
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .create_new(!Path::new("./helper_test_files/output_TCP_log.txt").exists())
-        .open("./helper_test_files/output_TCP_log.txt")
+        .create_new(!Path::new("./helper_test_files/output_TCPnonstr_log.txt").exists())
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
 
     let total = SystemTime::now();
@@ -259,7 +297,7 @@ fn main() {
             println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64));
             write!(file, "Garbler :: Total: {} ms\n 
                           Average computing time / permutation: {} ms\n
---------------------------------------", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
+--------------------------------------\n\n", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
 
         }
         Err(e) => println!("Failed to connect to evaluator: {}", e)

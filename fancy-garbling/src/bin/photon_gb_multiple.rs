@@ -262,7 +262,7 @@ fn main() {
             println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs * p_runs) as f64));
             write!(file, "Garbler :: Total: {} ms\n 
                           Average computing time / permutation: {} ms\n
---------------------------------------", tot, (tot as f64)/((s_runs * p_runs) as f64)).unwrap();
+--------------------------------------\n\n", tot, (tot as f64)/((s_runs * p_runs) as f64)).unwrap();
 
         }
         Err(e) => println!("Failed to connect to evaluator: {}", e)

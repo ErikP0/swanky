@@ -6,13 +6,14 @@ extern crate fancy_garbling;
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
     twopac::semihonest::Evaluator,
-    FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError,
+    FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError, classic::GarbledCircuit,
 };
 use itertools::Itertools;
 use ocelot::ot::AlszReceiver as OtReceiver;
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
+// use core::slice::SlicePattern;
 use std::{
-    io::{BufReader, BufWriter, Write},
+    io::{BufReader, BufWriter, Write, Read},
     net::{TcpStream, TcpListener},
     time::SystemTime, env, fs, path::Path,
 };
@@ -30,7 +31,7 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
@@ -43,16 +44,14 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     }
     let out = b.finish();
     println!(
-        "Evaluator :: Building circuit: {} ms\n
-                       Per permutation: {} ms\n",
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
         start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
         start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
     ).unwrap();
-    out.print_info().unwrap();
     out
 }
 
@@ -63,7 +62,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
@@ -76,70 +75,95 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     }
     let out = b.finish();
     println!(
-        "Evaluator :: Building circuit: {} ms\n
-                       Per permutation: {} ms",
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms",
         start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Evaluator :: Building circuit: {} ms\n
-Per permutation: {} ms\n",
+    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
         start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
 
-fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize) 
+fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
 
     let rng = AesRng::new();
     let reader = BufReader::new(receiver.try_clone().unwrap());
-    let writer = BufWriter::new(receiver);
+    let writer = BufWriter::new(receiver.try_clone().unwrap());
     let channel = Channel::new(reader, writer);
+    
     let start = SystemTime::now();
-    let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+    let mut sz_b = [0 as u8; 8];
+    receiver.read_exact(&mut sz_b).unwrap();
+    let sz = u64::from_le_bytes(sz_b);
+    let mut gbc_b = vec![0 as u8; sz as usize]; let gbc_s;
+    receiver.read_exact(&mut gbc_b).unwrap();
+    gbc_s = std::str::from_utf8(&gbc_b).unwrap();
+
+    let gbc: GarbledCircuit = serde_json::from_str(gbc_s).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Initialization: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Receiving & parsing garbled circuit: {} ms",
+        timing
+    );
+    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\n",
+        timing
+    ).unwrap();
+
+    let start = SystemTime::now();
+    let mut ev_ext = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
+    println!(
+        "Evaluator :: Initialization ext: {} ms",
+        timing
     );
     write!(file,
-        "Evaluator :: Initialization: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Initialization ext: {} ms\n",
+        timing
     ).unwrap();
+
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
     for _ in 0..p_runs {
-        ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
-        ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
+        ev_ext.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
     }
+    for _ in 0..p_runs {
+        ev_ext.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
+    }
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Encoding inputs: {} ms",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Encoding inputs (with OT): {} ms",
+        timing
     );
     write!(file,
-        "Evaluator :: Encoding inputs: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        "Evaluator :: Encoding inputs (with OT): {} ms\n",
+        timing
     ).unwrap();
+
     let start = SystemTime::now();
-    let output = circ.eval(&mut ev, &xs, &ys).unwrap();
+    let output = gbc.eval(circ, &xs, &ys).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Circuit evaluation: {} ms",
-        start.elapsed().unwrap().as_millis()
+        timing
     );
     write!(file,
         "Evaluator :: Circuit evaluation: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        timing
     ).unwrap();
-    let out = output.unwrap().into_iter().map(|o| {
-        ev.get_channel().write_u16(o).unwrap();
-        ev.get_channel().flush().unwrap();
+
+    let out = output.into_iter().map(|o| {
+        ev_ext.get_channel().write_u16(o).unwrap();
+        ev_ext.get_channel().flush().unwrap();
         o
     }).collect_vec();
     out
@@ -158,9 +182,9 @@ fn main() {
     let pre = SystemTime::now();
     let mut file = fs::OpenOptions::new()
         .write(true)
-        .create_new(!Path::new("./helper_test_files/output_TCP_log.txt").exists())
+        .create_new(!Path::new("./helper_test_files/output_TCPnonstr_log.txt").exists())
         .append(true)
-        .open("./helper_test_files/output_TCP_log.txt")
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
 
     write!(file, "--- EVALUATOR START: {} permutation(s) in series ---
@@ -277,10 +301,10 @@ fn main() {
     
                 println!("done: {:?}", output);
                 let tot = total.elapsed().unwrap().as_millis();
-                println!("Total: {} ms", tot);
-                println!("Average computing time / permutation: {} ms", ((tot + pre_tot) as f64)/((s_runs + p_runs) as f64));
+                println!("Total: {} ms", tot + pre_tot);
+                println!("Average computing time / permutation: {} ms", ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64));
                 write!(file, "Evaluator :: Total: {} ms\n 
-                              Average computing time / permutation: {} ms\n\n\n", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
+                              Average computing time / permutation: {} ms\n\n\n", tot + pre_tot, ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64)).unwrap();
             }
             Err(e) => println!("Connection failed: {}", e),
         }

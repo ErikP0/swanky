@@ -42,17 +42,16 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Building circuit: {} ms\n
-                       Per permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
-    out.print_info().unwrap();
     out
 }
 
@@ -75,16 +74,15 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Building circuit: {} ms\n
-                       Per permutation: {} ms",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Evaluator :: Building circuit: {} ms\n
-Per permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
@@ -104,13 +102,14 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
     let channel = Channel::new(reader, writer);
     let start = SystemTime::now();
     let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Initialization: {} ms",
-        start.elapsed().unwrap().as_millis()
+        timing
     );
     write!(file,
         "Evaluator :: Initialization: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        timing
     ).unwrap();
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
@@ -119,23 +118,25 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
         ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
         ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
     }
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Encoding inputs: {} ms",
-        start.elapsed().unwrap().as_millis()
+        timing
     );
     write!(file,
         "Evaluator :: Encoding inputs: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        timing
     ).unwrap();
     let start = SystemTime::now();
     let output = circ.eval(&mut ev, &xs, &ys).unwrap();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Circuit evaluation: {} ms",
-        start.elapsed().unwrap().as_millis()
+        timing
     );
     write!(file,
         "Evaluator :: Circuit evaluation: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        timing
     ).unwrap();
     let out = output.unwrap().into_iter().map(|o| {
         ev.get_channel().write_u16(o).unwrap();
