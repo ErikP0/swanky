@@ -42,17 +42,17 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
     write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns + sruns) as f64
     ).unwrap();
     out
-    
 }
 
 fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sruns: usize, pruns: usize) -> Circuit  where 
@@ -69,10 +69,12 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
+
     println!(
         "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns + sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
     out
 }
@@ -91,12 +93,13 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
     let channel = Channel::new(reader, writer);
     let start = SystemTime::now();
     let mut gb = Garbler::<MyChannel, AesRng, OtSender>::new(channel, rng).unwrap();
+    let gb_init = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Initialization: {} ms",
-        start.elapsed().unwrap().as_millis()
+        gb_init
     );
     write!(file, "Garbler :: Initialization: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        gb_init
     ).unwrap();
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
@@ -105,22 +108,24 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
         gb.receive_many(&vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
     }
+    let enc_inp = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Encoding inputs: {} ms",
-        start.elapsed().unwrap().as_millis()
+        enc_inp
     );
     write!(file, "Garbler :: Encoding inputs: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        enc_inp
     ).unwrap();
     let start = SystemTime::now();
     circ.eval(&mut gb, &xs, &ys).unwrap();
+    let time_ev = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Circuit garbling: {} ms",
-        start.elapsed().unwrap().as_millis()
+        time_ev
     );
     write!(file,
         "Garbler :: Circuit garbling: {} ms\n",
-        start.elapsed().unwrap().as_millis()
+        time_ev
     ).unwrap();
     let out = (0..circ.noutputs()).map(|_| {
         gb.get_channel().flush().unwrap();
