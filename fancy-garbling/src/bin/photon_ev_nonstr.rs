@@ -113,11 +113,11 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     let gbc: GarbledCircuit = serde_json::from_str(gbc_s).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} ms",
-        timing, (timing as f64) / (p_runs * s_runs) as f64
+        "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     );
-    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} ms\n",
-        timing, (timing as f64) / (p_runs * s_runs) as f64
+    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     ).unwrap();
 
     let start = SystemTime::now();
@@ -141,12 +141,12 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     ev_ext.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms",
-        timing, (timing as f64) / (p_runs * s_runs) as f64
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     );
     write!(file,
-        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms\n",
-        timing, (timing as f64) / (p_runs * s_runs) as f64
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     ).unwrap();
 
     let start = SystemTime::now();

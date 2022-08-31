@@ -44,13 +44,13 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let out = b.finish();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} us",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns + sruns) as f64
+        ((timing*1000) as f64) / (pruns + sruns) as f64
     ).unwrap();
     out
 }
@@ -59,6 +59,11 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCP_log.txt")
+        .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
     for x in xs.into_iter() {
@@ -72,10 +77,14 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     let timing = start.elapsed().unwrap().as_millis();
 
     println!(
-        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     );
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
+        timing,
+        ((timing*1000) as f64) / (pruns + sruns) as f64
+    ).unwrap();
     out
 }
 

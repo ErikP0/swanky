@@ -45,13 +45,13 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let out = b.finish();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} us",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
     
@@ -61,6 +61,11 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
     {
     let start = SystemTime::now();
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("./helper_test_files/output_TCPnonstr_log.txt")
+        .unwrap();
     let mut b = CircuitBuilder::new();
     let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
     for x in xs.into_iter() {
@@ -73,10 +78,14 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     let out = b.finish();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     );
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
+        timing,
+        ((timing*1000) as f64) / (pruns * sruns) as f64
+    ).unwrap();
     out
 }
 
@@ -97,10 +106,10 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let (en,gbc) = garble(&circ).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Garbling circuit: {} ms\nPer permutation: {} ms",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+        "Garbler :: Garbling circuit: {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Garbling circuit: {} ms\nPer permutation: {} ms\n",
+    write!(file, "Garbler :: Garbling circuit: {} ms\nPer permutation: {} us\n",
         timing, (timing as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
@@ -112,11 +121,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     sender.flush().unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} ms\n",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+        "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} ms\n",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+    write!(file, "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
     
     let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
@@ -153,11 +162,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} ms",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+        "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} ms\n",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+    write!(file, "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let out = (0..circ.noutputs()).map(|_| {
