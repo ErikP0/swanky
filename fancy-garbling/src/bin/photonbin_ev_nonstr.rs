@@ -6,7 +6,7 @@ extern crate fancy_garbling;
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
     twopac::semihonest::Evaluator,
-    FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError, classic::GarbledCircuit,
+    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy, errors::CircuitBuilderError, classic::GarbledCircuit,
 };
 use itertools::Itertools;
 use ocelot::ot::AlszReceiver as OtReceiver;
@@ -24,8 +24,9 @@ type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
 type MyChannel = Channel<Reader, Writer>;
 
-fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sruns: usize, pruns: usize) -> Circuit  where 
-    FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
+fn build_photon_circuit_bin<P,F>(photon: &mut P, fcn_input: &mut F, input: &[u16], d: usize, n: usize, sruns: usize, pruns: usize) -> Circuit  
+where  P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Vec<Vec<CircuitRef>>>, <CircuitBuilder as Fancy>::Error>,
+       F: FnMut(&mut CircuitBuilder, u16, &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> 
     {
     let start = SystemTime::now();
     let mut file = fs::OpenOptions::new()
@@ -34,63 +35,69 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
     let mut b = CircuitBuilder::new();
-    let xs = (0..pruns).map(|_| b.garbler_inputs(&vec![*poly; d*d])).collect_vec();
-    for x in xs.into_iter() {
+    let input_wires: Vec<Vec<Vec<Vec<CircuitRef>>>> = (0..pruns).map(|_| fill_nbit::<_,_>(input, &mut |i| fcn_input(&mut b, i as u16, &Modulus::Zq { q: 2 }).unwrap(), d, n)).collect();
+    for x in input_wires.into_iter() {
         let mut z = x;
         for _ in 0..sruns {
-            z = perm(&mut b, &z).unwrap();
+            z = photon(&mut b, z).unwrap();
         }
-        b.outputs(&z).unwrap();
+        b.outputs(&z.into_iter().flatten().flatten().collect::<Vec<_>>()).unwrap();
     }
     let out = b.finish();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms",
+        "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
         timing,
         (timing as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+    write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
         timing,
         (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
+    
 }
 
-fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sruns: usize, pruns: usize) -> Circuit  where 
-    FPERM: FnMut(&mut CircuitBuilder, &Vec<CircuitRef>) -> Result<Vec<CircuitRef>, CircuitBuilderError>, 
-    {
-    let start = SystemTime::now();
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open("./helper_test_files/output_TCPnonstr_log.txt")
-        .unwrap();
-    let mut b = CircuitBuilder::new();
-    let xs = (0..pruns).map(|_| b.evaluator_inputs(&vec![*poly; d*d])).collect_vec();
-    for x in xs.into_iter() {
-        let mut z = x;
-        for _ in 0..sruns {
-            z = perm(&mut b, &z).unwrap();
+// Helper functions
+fn garbler_input(b: &mut CircuitBuilder, _val: u16, modulus: &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
+    Ok(b.garbler_input(modulus))
+}
+
+fn evaluator_input(b: &mut CircuitBuilder, _val: u16, modulus: &Modulus) -> Result<CircuitRef, <CircuitBuilder as Fancy>::Error> {
+    Ok(b.evaluator_input(modulus))
+}
+
+fn fill_nbit<F, T>(bytes: &[u16], f: &mut F, d: usize, n :usize) -> Vec<Vec<Vec<T>>>
+    where F: FnMut(u16) -> T {
+        assert_eq!(bytes.len(), d*d);
+        let mut v = Vec::with_capacity(d);
+        let mut cnt = 0;
+        for _ in 0..d {
+            let mut row = Vec::with_capacity(d);
+            for _ in 0..d {
+                let x = bytes[cnt];
+                cnt += 1;
+                let cell: Vec<_> = (0..n).map(|i| f((x >> i) & 0x1))
+                    .collect();
+                row.push(cell);
+            }
+            v.push(row);
         }
-        b.outputs(&z).unwrap();
+        return v;
     }
-    let out = b.finish();
-    let timing = start.elapsed().unwrap().as_millis();
-    println!(
-        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms",
-        timing,
-        (timing as f64) / (pruns * sruns) as f64
-    );
-    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        timing,
-        (timing as f64) / (pruns * sruns) as f64
-    ).unwrap();
-    out
+
+fn encode_input_bin(input: Vec<u16>, d: usize, n: usize) -> Vec<u16>{
+    fill_nbit::<_, _>(&input, &mut |i| i, d, n).into_iter().flatten().flatten().collect()
 }
 
-fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize, s_runs: usize) 
+fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, d: usize, n: usize, p_runs: usize, s_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
+    let d_eff;
+    if n_ev_inputs == 0 {
+        d_eff = 0;
+    } else {d_eff = d;}
+    let evs_4bit = encode_input_bin(ev_inputs.to_vec(), d_eff, n);
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
@@ -136,10 +143,10 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
     for _ in 0..p_runs {
-        ev_ext.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
+        ev_ext.receive_many(&vec![Modulus::Zq { q: 2 }; n_gb_inputs*n]).unwrap().into_iter().for_each(|w| xs.push(w));
     }
     for _ in 0..p_runs {
-        ev_ext.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
+        ev_ext.encode_many(&evs_4bit, &vec![Modulus::Zq { q: 2 }; n_ev_inputs*n]).unwrap().into_iter().for_each(|w| ys.push(w));
     }
     let timing = start.elapsed().unwrap().as_millis();
     println!(
@@ -179,7 +186,7 @@ fn main() {
     let s_runs: usize = args[3].parse().unwrap();
     let p_runs: usize = args[4].parse().unwrap();
     let modulus; let circ;
-    let d; let input;
+    let d; let input; let n;
     let mut output;
     let pre = SystemTime::now();
     let mut file = fs::OpenOptions::new()
@@ -197,90 +204,58 @@ fn main() {
     match perm_id.as_ref() {
         "100" => {
             modulus = Modulus::GF4 { p: 19 };
-            d = 5;
+            d = 5; n = 4;
+            input =   vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
             if gb_ev == "ev" {
-                circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs, p_runs);
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut evaluator_input, &input, d, 4, s_runs, p_runs)
             } else {
-                circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_100(f, &x), d, s_runs, p_runs);
-                }
-            input =   vec![0, 0 ,0, 0, 4,
-                            0, 0, 0, 0, 1,
-                            0, 0 ,0, 0, 4,
-                            0, 0 ,0, 0, 1,
-                            0, 0 ,0, 1, 0];
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut garbler_input, &input, d, 4, s_runs, p_runs)
+            }
         },
         "144" => {
             modulus = Modulus::GF4 { p: 19 };
-            d = 6;
+            d = 6; n = 4;
+            input = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,1,0];
             if gb_ev == "ev" {
-                circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs, p_runs);
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_144, &mut evaluator_input, &input, d, 4, s_runs, p_runs)
             } else {
-                circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_144(f, &x), d, s_runs, p_runs);
-                }
-            input = vec![0, 0 ,0, 0, 0, 2,
-                          0, 0, 0, 0, 0, 0,
-                          0, 0 ,0, 0, 0, 1,
-                          0, 0 ,0, 0, 0, 0,
-                          0, 0 ,0, 0, 0, 1,
-                          0, 0, 0, 0, 0, 0];
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_144, &mut garbler_input, &input, d, 4, s_runs, p_runs)
+            }
         },
         "196" => {
             modulus = Modulus::GF4 { p: 19 };
-            d = 7;
+            d = 7; n = 4;
+            input = vec![0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,2,8,2,4,2,4];
             if gb_ev == "ev" {
-                circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs, p_runs);
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_196, &mut evaluator_input, &input, d, 4, s_runs, p_runs)
             } else {
-                circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_196(f, &x), d, s_runs, p_runs);
-                }
-            input = vec![0, 0 ,0, 0, 0, 0, 0,
-                          0, 0, 0, 0, 0, 0, 2,
-                          0, 0 ,0, 0, 0, 0, 8,
-                          0, 0 ,0, 0, 0, 0, 2,
-                          0, 0 ,0, 0, 0, 0, 4,
-                          0, 0, 0, 0, 0, 0, 2,
-                          0, 0, 0, 0, 0, 0, 4];
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_196, &mut garbler_input, &input, d, 4, s_runs, p_runs)
+            }
         },
         "256" => {
             modulus = Modulus::GF4 { p: 19 };
-            d = 8;
+            d = 8; n = 4;
+            input = vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
             if gb_ev == "ev" {
-                circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs, p_runs);
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut evaluator_input, &input, d, 4, s_runs, p_runs)
             } else {
-                circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_256(f, &x), d, s_runs, p_runs);
-                }
-            input = vec![0, 0 ,0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0 ,0, 0, 0, 0, 0, 3,
-                            0, 0 ,0, 0, 0, 0, 0, 8,
-                            0, 0 ,0, 0, 0, 0, 0, 2,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 2,
-                            0, 0, 0, 0, 0, 0, 0, 0];
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut garbler_input, &input, d, 4, s_runs, p_runs)
+            }
         },
         "288" => {
             modulus = Modulus::GF8 { p: 283 };
-            d = 6;
+            d = 6; n = 8;
+            input = vec![00, 00, 00, 00, 00, 00, 
+                        00, 00, 00, 00, 00, 00, 
+                        00, 00, 00, 00, 00, 00, 
+                        00, 00, 00, 00, 00, 00, 
+                        00, 00, 00, 00, 00, 00, 
+                        00, 00, 00, 40, 20, 20 ];
             if gb_ev == "ev" {
-                circ = build_photon_circuit_ev(&modulus, 
-                        move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs, p_runs);
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_288, &mut evaluator_input, &input, d, 8, s_runs, p_runs)
             } else {
-                circ = build_photon_circuit_gb(&modulus, 
-                    move |f: &mut CircuitBuilder, x| PhotonGadgets::photon_288(f, &x), d, s_runs, p_runs);
-                }
-            input = vec![0, 0 ,0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0,
-                            0, 0 ,0, 0, 0, 0,
-                            0, 0 ,0, 0, 0, 0x40,
-                            0, 0 ,0, 0, 0, 0x20,
-                            0, 0, 0, 0, 0, 0x20];
+                circ = build_photon_circuit_bin(&mut <CircuitBuilder as PhotonFancyExt>::photon_288, &mut garbler_input, &input, d, 8, s_runs, p_runs)
+            }
         },
         &_ => panic!("Command line argument is not a right permutation ID!")
     }
@@ -296,9 +271,9 @@ fn main() {
                 println!("Garbler connected on {}", addr);
                 
                 if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, &modulus, p_runs, s_runs);
+                    output = run_circuit(&circ, receiver, &input, 0, d, n, p_runs, s_runs);
                 } else {
-                    output = run_circuit(&circ, receiver, &[], d*d, &modulus, p_runs, s_runs);
+                    output = run_circuit(&circ, receiver, &[], d*d, d, n, p_runs, s_runs);
                 }
     
                 println!("done: {:?}", output);

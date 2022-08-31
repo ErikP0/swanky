@@ -1013,3 +1013,451 @@ Garbler :: Total: 11932 ms
 
 --------------------------------------
 
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 32 ms
+Per permutation: 8 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 19 ms
+Per permutation: 4.75 ms
+Garbler :: Garbling circuit: 63 ms
+Per permutation: 15.75 ms
+Garbler :: Parsing & sending garbled circuit: 32 ms
+Per permutation: 8 ms
+Evaluator :: Receiving & parsing garbled circuit: 157 ms
+Per permutation: 39.25 ms
+Evaluator :: Initialization ext: 188 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 29 ms
+Per permutation: 7.25 ms
+Garbler :: Garbling circuit: 76 ms
+Per permutation: 19 ms
+Garbler :: Parsing & sending garbled circuit: 31 ms
+Per permutation: 7.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 179 ms
+Per permutation: 44.75 ms
+Evaluator :: Initialization ext: 168 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 40 ms
+Per permutation: 10 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 25 ms
+Per permutation: 6.25 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 35 ms
+Per permutation: 8.75 ms
+Garbler :: Garbling circuit: 57 ms
+Per permutation: 14.25 ms
+Garbler :: Parsing & sending garbled circuit: 31 ms
+Per permutation: 7.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 155 ms
+Per permutation: 38.75 ms
+Evaluator :: Initialization ext: 195 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 24 ms
+Per permutation: 6 ms
+Garbler :: Garbling circuit: 68 ms
+Per permutation: 17 ms
+Garbler :: Parsing & sending garbled circuit: 25 ms
+Per permutation: 6.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 157 ms
+Per permutation: 39.25 ms
+Evaluator :: Initialization ext: 147 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+Garbler :: Garbling circuit: 59 ms
+Per permutation: 14.75 ms
+Garbler :: Parsing & sending garbled circuit: 29 ms
+Per permutation: 7.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 157 ms
+Per permutation: 39.25 ms
+Evaluator :: Initialization ext: 184 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 27 ms
+Per permutation: 6.75 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 32 ms
+Per permutation: 8 ms
+Garbler :: Garbling circuit: 67 ms
+Per permutation: 16.75 ms
+Garbler :: Parsing & sending garbled circuit: 29 ms
+Per permutation: 7.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 176 ms
+Per permutation: 44 ms
+Evaluator :: Initialization ext: 135 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 24 ms
+Per permutation: 6 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 28 ms
+Per permutation: 7 ms
+Garbler :: Garbling circuit: 62 ms
+Per permutation: 15.5 ms
+Garbler :: Parsing & sending garbled circuit: 31 ms
+Per permutation: 7.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 168 ms
+Per permutation: 42 ms
+Evaluator :: Initialization ext: 138 ms
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 ms
+Evaluator :: Encoding inputs (with OT): 2 ms
+Per permutation: 0.5 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 31 ms
+Per permutation: 7.75 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 32 ms
+Per permutation: 8 ms
+Garbler :: Garbling circuit: 66 ms
+Per permutation: 16.5 ms
+Garbler :: Parsing & sending garbled circuit: 24 ms
+Per permutation: 6 ms
+Evaluator :: Receiving & parsing garbled circuit: 167 ms
+Per permutation: 41.75 ms
+Evaluator :: Initialization ext: 145 ms
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 ms
+Evaluator :: Encoding inputs (with OT): 0 ms
+Per permutation: 0 ms
+Evaluator :: Circuit evaluation: 35 ms
+Per permutation: 8.75 ms
+Evaluator :: Total: 382 ms
+ 
+                              Average computing time / permutation: 95.5 ms
+
+
+Garbler :: Total: 384 ms
+ 
+                          Average computing time / permutation: 96 ms
+
+--------------------------------------
+
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 182 ms
+Per permutation: 45.5 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 175 ms
+Per permutation: 43.75 ms
+Garbler :: Garbling circuit: 359 ms
+Per permutation: 89.75 ms
+Garbler :: Parsing & sending garbled circuit: 182 ms
+Per permutation: 45.5 ms
+Evaluator :: Receiving & parsing garbled circuit: 1056 ms
+Per permutation: 264 ms
+Evaluator :: Initialization ext: 131 ms
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 ms
+Evaluator :: Encoding inputs (with OT): 1 ms
+Per permutation: 0.25 ms
+Evaluator :: Circuit evaluation: 277 ms
+Per permutation: 69.25 ms
+Evaluator :: Total: 1655 ms
+ 
+                              Average computing time / permutation: 413.75 ms
+
+
+Garbler :: Total: 1644 ms
+ 
+                          Average computing time / permutation: 411 ms
+
+--------------------------------------
+
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 24 ms
+Per permutation: 6 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 172 ms
+Per permutation: 43 ms
+Garbler :: Garbling circuit: 356 ms
+Per permutation: 89 ms
+Garbler :: Parsing & sending garbled circuit: 189 ms
+Per permutation: 47.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 979 ms
+Per permutation: 244.75 ms
+Evaluator :: Initialization ext: 134 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 24 ms
+Per permutation: 6 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 177 ms
+Per permutation: 44.25 ms
+Garbler :: Garbling circuit: 381 ms
+Per permutation: 95.25 ms
+Garbler :: Parsing & sending garbled circuit: 245 ms
+Per permutation: 61.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 1186 ms
+Per permutation: 296.5 ms
+Evaluator :: Initialization ext: 159 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 32 ms
+Per permutation: 8 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 195 ms
+Per permutation: 48.75 ms
+Garbler :: Garbling circuit: 371 ms
+Per permutation: 92.75 ms
+Garbler :: Parsing & sending garbled circuit: 240 ms
+Per permutation: 60 ms
+Evaluator :: Receiving & parsing garbled circuit: 1152 ms
+Per permutation: 288 ms
+Evaluator :: Initialization ext: 226 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Evaluator :: Building circuit: 8 ms
+Per permutation: 2000 us
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 34 ms
+Per permutation: 8.5 ms
+Garbler :: Garbling circuit: 59 ms
+Per permutation: 14.75 ms
+Garbler :: Parsing & sending garbled circuit: 31 ms
+Per permutation: 7.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 153 ms
+Per permutation: 38.25 ms
+Evaluator :: Initialization ext: 140 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Evaluator :: Building circuit: 9 ms
+Per permutation: 2250 us
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 25 ms
+Per permutation: 6.25 ms
+Garbler :: Garbling circuit: 60 ms
+Per permutation: 15 ms
+Garbler :: Parsing & sending garbled circuit: 27 ms
+Per permutation: 6.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 159 ms
+Per permutation: 39.75 ms
+Evaluator :: Initialization ext: 156 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Evaluator :: Building circuit: 9 ms
+Per permutation: 2250 us
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Evaluator :: Building circuit: 9 ms
+Per permutation: 2250 us
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Garbling circuit: 700 ms
+Per permutation: 175 ms
+Garbler :: Parsing & sending garbled circuit: 45 ms
+Per permutation: 11.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 833 ms
+Per permutation: 208.25 ms
+Evaluator :: Initialization ext: 141 ms
+Garbler :: Encoding & sending inputs with OT: 5 ms
+Per permutation: 1.25 ms
+Evaluator :: Encoding inputs (with OT): 7 ms
+Per permutation: 1.75 ms
+Evaluator :: Circuit evaluation: 92 ms
+Per permutation: 23000 us
+Evaluator :: Total: 1093 ms
+ 
+                              Average computing time / permutation: 273.25 ms
+
+
+Garbler :: Total: 1095 ms
+ 
+                          Average computing time / permutation: 273.75 ms
+
+--------------------------------------
+
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 24 ms
+Per permutation: 6 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 40 ms
+Per permutation: 10 ms
+Garbler :: Garbling circuit: 70 ms
+Per permutation: 17.5 ms
+Garbler :: Parsing & sending garbled circuit: 35 ms
+Per permutation: 8.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 173 ms
+Per permutation: 43.25 ms
+Evaluator :: Initialization ext: 254 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 33 ms
+Per permutation: 8.25 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 32 ms
+Per permutation: 8 ms
+Garbler :: Garbling circuit: 69 ms
+Per permutation: 17.25 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 25 ms
+Per permutation: 6.25 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 38 ms
+Per permutation: 9.5 ms
+Garbler :: Garbling circuit: 79 ms
+Per permutation: 19.75 ms
+Garbler :: Parsing & sending garbled circuit: 49 ms
+Per permutation: 12.25 ms
+Evaluator :: Receiving & parsing garbled circuit: 203 ms
+Per permutation: 50.75 ms
+Evaluator :: Initialization ext: 204 ms
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 31 ms
+Per permutation: 7.75 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 33 ms
+Per permutation: 8.25 ms
+Garbler :: Garbling circuit: 48 ms
+Per permutation: 12 ms
+Garbler :: Parsing & sending garbled circuit: 30 ms
+Per permutation: 7.5 ms
+Evaluator :: Receiving & parsing garbled circuit: 147 ms
+Per permutation: 36.75 ms
+Evaluator :: Initialization ext: 249 ms
+Garbler :: Encoding & sending inputs with OT: 2 ms
+Per permutation: 0.5 ms
+Evaluator :: Encoding inputs (with OT): 2 ms
+Per permutation: 0.5 ms
+Evaluator :: Circuit evaluation: 35 ms
+Per permutation: 8.75 ms
+Evaluator :: Total: 479 ms
+ 
+                              Average computing time / permutation: 119.75 ms
+
+
+Garbler :: Total: 483 ms
+ 
+                          Average computing time / permutation: 120.75 ms
+
+--------------------------------------
+
