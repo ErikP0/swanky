@@ -1,9 +1,11 @@
 // -*- mode: rust; -*-
-//
-// This file is part of `fancy-garbling`.
 // Copyright © 2022 COSIC 
 // Elias Wils & Robbe Vermeiren
 // See LICENSE for licensing information.
+//
+//
+// Photon paper: https://eprint.iacr.org/2011/609.pdf
+// Test Vectors + reference implementation: https://sites.google.com/site/photonhashfunction/downloads
 
 use crate::{
     fancy::{Fancy, HasModulus},
@@ -48,7 +50,7 @@ const SBOX_AES_INV: &[u16] =  &[0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 
 
 
 /// A collection of wires for the PHOTON permutation, useful for the garbled gadgets defined by `PhotonGadgets`.
-// [[W; D]; D] is =organized in row-major order
+// [[W; D]; D] is = organized in row-major order
 #[derive(Clone, PartialEq)]
 struct PhotonState<F: Fancy> {
     state_matrix: Vec<Vec<F::Item>>,
@@ -133,7 +135,7 @@ impl<F: Fancy> PhotonState<F>
         Ok(outputs.into_iter().collect())
     }
     
-    /// 
+    /// 1 round of the `PHOTON` permutation. 
     fn PermutePHOTON (
         &mut self,
         f: &mut F,
@@ -148,25 +150,21 @@ impl<F: Fancy> PhotonState<F>
         debug_assert_eq!(sbox.len(), self.size());
         debug_assert_eq!(Z.len(), d);
 
-        // let mut res_state = self.clone();
-        // println!("initial: {}", res_state);
+       
         for round in 0..12 {
             self.AddConstants(f, RCS[round], ics)?;
-            // println!("addc: {}", res_state);
 
             self.SubCells(f, sbox)?;
-            // println!("subc: {}", res_state);
 
             self.ShiftRows()?;
-            // println!("shiftr: {}", res_state);
 
             self.MixColumnsSerial(f, Z)?;
-            // println!("mixc: {}", res_state);
         }
 
         Ok(())
     }
 
+    /// 1 round of the inverse `PHOTON` permutation.
     fn PermutePHOTONInverse (
         &mut self, 
         f: &mut F,
@@ -181,31 +179,25 @@ impl<F: Fancy> PhotonState<F>
         debug_assert_eq!(sbox.len(), self.size());
         debug_assert_eq!(Z.len(), d);
 
-        // let mut res_state = self.clone();
-        // println!("initial: {}", res_state);
+        
         for round in 0..12 {
-            self.MixColumnsSerialInv(f, Z)?;       // Input Z coefficients as in the forward permutation
-            // println!("mixc: {}", self);
+            self.MixColumnsSerialInv(f, Z)?;        // Input Z coefficients as in the forward permutation
 
             self.ShiftRowsInv()?;
-            // println!("shiftr: {}", self);
 
-            self.SubCells(f, sbox)?; // Just use the same function as in the forward permutation with the inverse SBOX
-            // println!("subc: {}", self);
+            self.SubCells(f, sbox)?;                // use the same function as in the forward permutation with the inverse SBOX
 
             self.AddConstants(f, RCS[round], ics)?; // Inverse is also just addition because we do arithmetic in GF(2^k)
-            // println!("addc: {}", self);
         }
 
         Ok(())
-
     }
 
     fn AddConstants (
         &mut self,
         f: &mut F,
         rc: u16,
-        ics: &[u16] //hardcode!
+        ics: &[u16] 
     ) -> Result<(), F::Error> {
         debug_assert_eq!(ics.len(), self.dim());
         let w_ics = ics
@@ -232,15 +224,12 @@ impl<F: Fancy> PhotonState<F>
         debug_assert_eq!(self.size(), sbox.len(), "Sbox has incorrect dimensions");
 
         let state_mod = self.modulus();
-        // let mut res_state = state.state_matrix().clone();
         for row in self.state_matrix.iter_mut() {
             for el in row.iter_mut() {
                 *el = f.proj(el, &state_mod, Some(sbox.to_vec())).unwrap();
             }
         }
-
         Ok(())
-
     }
 
 
@@ -601,7 +590,7 @@ mod photon_test {
         assert_eq!(res_state_m, f.outputs(&state).unwrap().unwrap());
 
     }
-
+    //------------------------Circuit tests-----------------------------
     // Builds photon circuit with circuitbuilder and evaluate it 
     // with the eval_plain function
     #[test]
