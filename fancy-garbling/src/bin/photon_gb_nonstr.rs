@@ -17,8 +17,8 @@ use std::{
     time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
-// const EV_ADDR: &str = "10.2.33.45:9481";
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
+// const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -80,7 +80,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     out
 }
 
-fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) -> Vec<u16> {
+fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize, s_runs: usize) -> Vec<u16> {
     let n_gb_inputs = gb_inputs.len();
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -97,11 +97,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let (en,gbc) = garble(&circ).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Garbling circuit: {} ms",
-        timing
+        "Garbler :: Garbling circuit: {} ms\nPer permutation: {} ms",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Garbling circuit: {} ms\n",
-        timing
+    write!(file, "Garbler :: Garbling circuit: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let start = SystemTime::now();
@@ -112,11 +112,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     sender.flush().unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Parsing & sending garbled circuit: {} ms",
-        timing
+        "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Parsing & sending garbled circuit: {} ms\n",
-        timing
+    write!(file, "Garbler :: Parsing & sending garbled circuit: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
     
     let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
@@ -155,11 +155,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Encoding & sending inputs with OT: {} ms",
-        timing
+        "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} ms",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file, "Garbler :: Encoding & sending inputs with OT: {} ms\n",
-        timing
+    write!(file, "Garbler :: Encoding & sending inputs with OT: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let out = (0..circ.noutputs()).map(|_| {
@@ -287,9 +287,9 @@ fn main() {
         Ok(sender) => {
             println!("Successfully connected to evaluator on {}", EV_ADDR);
             if gb_ev == "ev" {
-                out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs);
+                out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs,s_runs);
             } else {
-                out = run_circuit(&circ, sender, &input, 0, &modulus, p_runs);
+                out = run_circuit(&circ, sender, &input, 0, &modulus, p_runs, s_runs);
             }
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();

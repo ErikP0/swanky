@@ -43,14 +43,15 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms",
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
@@ -74,19 +75,20 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
         b.outputs(&z).unwrap();
     }
     let out = b.finish();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
-        start.elapsed().unwrap().as_millis(),
-        (start.elapsed().unwrap().as_millis() as f64) / (pruns * sruns) as f64
+        timing,
+        (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
 
-fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize) 
+fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize, s_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
     let mut file = fs::OpenOptions::new()
@@ -111,11 +113,11 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     let gbc: GarbledCircuit = serde_json::from_str(gbc_s).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Receiving & parsing garbled circuit: {} ms",
-        timing
+        "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} ms",
+        timing, (timing as f64) / (p_runs * s_runs) as f64
     );
-    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\n",
-        timing
+    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / (p_runs * s_runs) as f64
     ).unwrap();
 
     let start = SystemTime::now();
@@ -141,24 +143,24 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     }
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Encoding inputs (with OT): {} ms",
-        timing
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms",
+        timing, (timing as f64) / (p_runs * s_runs) as f64
     );
     write!(file,
-        "Evaluator :: Encoding inputs (with OT): {} ms\n",
-        timing
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / (p_runs * s_runs) as f64
     ).unwrap();
 
     let start = SystemTime::now();
     let output = gbc.eval(circ, &xs, &ys).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Circuit evaluation: {} ms",
-        timing
+        "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} ms",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     );
     write!(file,
-        "Evaluator :: Circuit evaluation: {} ms\n",
-        timing
+        "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} ms\n",
+        timing, (timing as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let out = output.into_iter().map(|o| {
@@ -294,9 +296,9 @@ fn main() {
                 println!("Garbler connected on {}", addr);
                 
                 if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, &modulus, p_runs);
+                    output = run_circuit(&circ, receiver, &input, 0, &modulus, p_runs, s_runs);
                 } else {
-                    output = run_circuit(&circ, receiver, &[], d*d, &modulus, p_runs);
+                    output = run_circuit(&circ, receiver, &[], d*d, &modulus, p_runs, s_runs);
                 }
     
                 println!("done: {:?}", output);
