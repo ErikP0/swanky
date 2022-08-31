@@ -47,11 +47,11 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     println!(
         "Evaluator :: Building circuit: {} ms\nPer permutation: {} us",
         timing,
-        (timing * 1000 as f64) / (pruns * sruns) as f64
+        ((timing * 1000) as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing * 1000 as f64) / (pruns * sruns) as f64
+        ((timing * 1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
@@ -79,11 +79,11 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     println!(
         "Evaluator :: Building circuit: {} ms\nPer permutation: {} us",
         timing,
-        (timing * 1000 as f64) / (pruns * sruns) as f64
+        ((timing * 1000) as f64) / (pruns * sruns) as f64
     );
     write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing * 1000 as f64) / (pruns * sruns) as f64
+        ((timing * 1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
@@ -156,11 +156,11 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us",
-        timing, (timing * 1000 as f64) / ((s_runs*p_runs) as f64)
+        timing, ((timing * 1000) as f64) / ((s_runs*p_runs) as f64)
     );
     write!(file,
         "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us\n",
-        timing, (timing * 1000 as f64) / ((s_runs*p_runs) as f64)
+        timing, ((timing * 1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let out = output.into_iter().map(|o| {
