@@ -134,10 +134,11 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     if n_gb_inputs == 0 {
         d_eff = 0;
     } else {d_eff = d;}
-    let gbs_4bit = encode_input_bin(gb_inputs.to_vec(), d_eff, n);
-    let mut gbs = vec![0; p_runs*n_gb_inputs*n];
-    (0..p_runs*n_gb_inputs*n).for_each(|i| gbs[i] = gbs_4bit[i % n_gb_inputs*n]);
-    let encoded_gb = en.encode_garbler_inputs(&gbs);
+    let mut gbs_4bit = Vec::with_capacity(p_runs*d_eff*d_eff);
+    for i in 0..p_runs {
+        gbs_4bit.extend(encode_input_bin(gb_inputs[i*d_eff*d_eff..(i*d_eff*d_eff+d_eff*d_eff)].to_vec(), d_eff, n));
+    }
+    let encoded_gb = en.encode_garbler_inputs(&gbs_4bit);
     encoded_gb.iter().for_each(|wire| channel.write_block(&wire.as_block()).unwrap());
 
     let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs*p_runs*n]);
@@ -146,7 +147,6 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let mut wire = Wire::default(); let mut delta = Wire::default();
 
     for run in 0..p_runs {
-        inputs.clear();
         for i in 0..n_ev_inputs*n {    
             wire = zero_ev[i + run*n_ev_inputs*n].clone();
             delta = en.encode_evaluator_input(1, i + run*n_ev_inputs*n).negate().plus(&zero_ev[i + run*n_ev_inputs*n]);
@@ -164,8 +164,8 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
                 inputs.push(i);
             }
         }
-        ot.send(&mut channel, &inputs, &mut rng).unwrap();
     }
+    ot.send(&mut channel, &inputs, &mut rng).unwrap();
     
     let timing = start.elapsed().unwrap().as_millis();
     println!(
@@ -271,7 +271,9 @@ fn main() {
             if gb_ev == "ev" {
                 out = run_circuit(&circ, sender, &[], d*d, &modulus, d, n, p_runs,s_runs);
             } else {
-                out = run_circuit(&circ, sender, &input, 0, &modulus, d, n, p_runs, s_runs);
+                let mut gbs = vec![0; p_runs*input.len()];
+                (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
+                out = run_circuit(&circ, sender, &gbs, 0, &modulus, d, n, p_runs, s_runs);
             }
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();

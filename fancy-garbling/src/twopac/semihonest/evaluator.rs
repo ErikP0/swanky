@@ -79,6 +79,7 @@ impl<C: AbstractChannel, RNG: CryptoRng + Rng, OT: OtReceiver<Msg = Block> + Sem
             }
             lens.push(len);
         }
+        println!("recv {}", bs.len());
         let wires = self.run_ot(&bs)?;
         let mut start = 0;
         Ok(lens

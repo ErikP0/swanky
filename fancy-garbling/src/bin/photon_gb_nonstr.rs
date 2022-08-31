@@ -17,8 +17,8 @@ use std::{
     time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
-// const EV_ADDR: &str = "10.2.33.45:9481";
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
+// const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -121,9 +121,7 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     
     let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
     let start = SystemTime::now();
-    let mut gbs = vec![0; p_runs*n_gb_inputs];
-    (0..p_runs*n_gb_inputs).for_each(|i| gbs[i] = gb_inputs[i % n_gb_inputs]);
-    let encoded_gb = en.encode_garbler_inputs(&gbs);
+    let encoded_gb = en.encode_garbler_inputs(&gb_inputs);
     encoded_gb.iter().for_each(|wire| channel.write_block(&wire.as_block()).unwrap());
 
     let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs*p_runs]);
@@ -132,7 +130,6 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let mut wire = Wire::default(); let mut delta = Wire::default();
 
     for run in 0..p_runs {
-        inputs.clear();
         for i in 0..n_ev_inputs {    
             wire = zero_ev[i + run*n_ev_inputs].clone();
             delta = en.encode_evaluator_input(1, i + run*n_ev_inputs).negate().plus(&zero_ev[i + run*n_ev_inputs]);
@@ -150,8 +147,9 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
                 inputs.push(i);
             }
         }
-        ot.send(&mut channel, &inputs, &mut rng).unwrap();
     }
+    println!("send {}", inputs.len());
+    ot.send(&mut channel, &inputs, &mut rng).unwrap();
     
     let timing = start.elapsed().unwrap().as_millis();
     println!(
@@ -289,7 +287,9 @@ fn main() {
             if gb_ev == "ev" {
                 out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs,s_runs);
             } else {
-                out = run_circuit(&circ, sender, &input, 0, &modulus, p_runs, s_runs);
+                let mut gbs = vec![0; p_runs*input.len()];
+                (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
+                out = run_circuit(&circ, sender, &gbs, 0, &modulus, p_runs, s_runs);
             }
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();

@@ -138,9 +138,7 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     for _ in 0..p_runs {
         ev_ext.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
     }
-    for _ in 0..p_runs {
-        ev_ext.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
-    }
+    ev_ext.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms",
@@ -296,7 +294,9 @@ fn main() {
                 println!("Garbler connected on {}", addr);
                 
                 if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, &modulus, p_runs, s_runs);
+                    let mut evs = vec![0; p_runs*input.len()];
+                    (0..p_runs*input.len()).for_each(|i| evs[i] = input[i % input.len()]);
+                    output = run_circuit(&circ, receiver, &evs, 0, &modulus, p_runs, s_runs);
                 } else {
                     output = run_circuit(&circ, receiver, &[], d*d, &modulus, p_runs, s_runs);
                 }

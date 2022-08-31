@@ -96,7 +96,10 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     if n_ev_inputs == 0 {
         d_eff = 0;
     } else {d_eff = d;}
-    let evs_4bit = encode_input_bin(ev_inputs.to_vec(), d_eff, n);
+    let mut evs_4bit = Vec::with_capacity(p_runs*d_eff*d_eff);
+    for i in 0..p_runs {
+        evs_4bit.extend(encode_input_bin(ev_inputs[i*d_eff*d_eff..(i*d_eff*d_eff+d_eff*d_eff)].to_vec(), d_eff, n));
+    }
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
@@ -144,9 +147,7 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     for _ in 0..p_runs {
         ev_ext.receive_many(&vec![Modulus::Zq { q: 2 }; n_gb_inputs*n]).unwrap().into_iter().for_each(|w| xs.push(w));
     }
-    for _ in 0..p_runs {
-        ev_ext.encode_many(&evs_4bit, &vec![Modulus::Zq { q: 2 }; n_ev_inputs*n]).unwrap().into_iter().for_each(|w| ys.push(w));
-    }
+    ev_ext.encode_many(&evs_4bit, &vec![Modulus::Zq { q: 2 }; n_ev_inputs*n*p_runs]).unwrap().into_iter().for_each(|w| ys.push(w));
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} ms",
@@ -265,7 +266,9 @@ fn main() {
                 println!("Garbler connected on {}", addr);
                 
                 if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, d, n, p_runs, s_runs);
+                    let mut evs = vec![0; p_runs*input.len()];
+                    (0..p_runs*input.len()).for_each(|i| evs[i] = input[i % input.len()]);
+                    output = run_circuit(&circ, receiver, &evs, 0, d, n, p_runs, s_runs);
                 } else {
                     output = run_circuit(&circ, receiver, &[], d*d, d, n, p_runs, s_runs);
                 }
