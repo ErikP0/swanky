@@ -194,7 +194,6 @@ fn main() {
         .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
 
-    let total = SystemTime::now();
 
     write!(file, "--- GARBLER START: {} permutation(s) in series ---
                    {} permutation(s) in parallel
@@ -293,6 +292,7 @@ fn main() {
     }
     match TcpStream::connect(EV_ADDR) {
         Ok(sender) => {
+            let total = SystemTime::now();
             println!("Successfully connected to evaluator on {}", EV_ADDR);
             if gb_ev == "ev" {
                 out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs,s_runs);

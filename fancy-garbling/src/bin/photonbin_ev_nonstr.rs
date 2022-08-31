@@ -276,10 +276,10 @@ fn main() {
     
                 println!("done: {:?}", output);
                 let tot = total.elapsed().unwrap().as_millis();
-                println!("Total: {} ms", tot + pre_tot);
-                println!("Average computing time / permutation: {} ms", ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64));
+                println!("Total: {} ms", tot);
+                println!("Average computing time / permutation: {} ms", ((tot) as f64)/((s_runs * p_runs) as f64));
                 write!(file, "Evaluator :: Total: {} ms\n 
-                              Average computing time / permutation: {} ms\n\n\n", tot + pre_tot, ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64)).unwrap();
+                              Average computing time / permutation: {} ms\n\n\n", tot, ((tot) as f64)/((s_runs * p_runs) as f64)).unwrap();
             }
             Err(e) => println!("Connection failed: {}", e),
         }
