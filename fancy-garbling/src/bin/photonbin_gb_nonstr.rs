@@ -48,11 +48,11 @@ where  P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Ve
     println!(
         "Garbler :: Building circuit: {} ms\nPer permutation: {} ms",
         timing,
-        (timing as f64) / (pruns + sruns) as f64
+        (timing as f64) / (pruns * sruns) as f64
     );
     write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} ms\n",
         timing,
-        (timing as f64) / (pruns + sruns) as f64
+        (timing as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
     
@@ -303,10 +303,10 @@ fn main() {
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();
             println!("Total: {} ms", tot);
-            println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs + p_runs) as f64));
+            println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs * p_runs) as f64));
             write!(file, "Garbler :: Total: {} ms\n 
                           Average computing time / permutation: {} ms\n
---------------------------------------\n\n", tot, (tot as f64)/((s_runs + p_runs) as f64)).unwrap();
+--------------------------------------\n\n", tot, (tot as f64)/((s_runs * p_runs) as f64)).unwrap();
 
         }
         Err(e) => println!("Failed to connect to evaluator: {}", e)
