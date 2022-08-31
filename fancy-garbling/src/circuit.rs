@@ -539,7 +539,7 @@ mod plaintext {
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
-    #[test] // {{{ and_gate_fan_n
+    #[test] //  and_gate_fan_n
     fn and_gate_fan_n() {
         let mut rng = thread_rng();
 
@@ -563,8 +563,8 @@ mod plaintext {
             }
         }
     }
-    //}}}
-    #[test] // {{{ or_gate_fan_n
+    
+    #[test] //  or_gate_fan_n
     fn or_gate_fan_n() {
         let mut rng = thread_rng();
         let mut b = CircuitBuilder::new();
@@ -587,8 +587,8 @@ mod plaintext {
             }
         }
     }
-    //}}}
-    #[test] // {{{ half_gate
+    
+    #[test] //  half_gate
     fn half_gate() {
         let mut rng = thread_rng();
         let mut b = CircuitBuilder::new();
@@ -605,8 +605,8 @@ mod plaintext {
             assert_eq!(out[0], x * y % q);
         }
     }
-    //}}}
-    #[test] // mod_change {{{
+    
+    #[test] // mod_change 
     fn mod_change() {
         let mut rng = thread_rng();
         let mut b = CircuitBuilder::new();
@@ -623,8 +623,8 @@ mod plaintext {
             assert_eq!(out[0], x % q);
         }
     }
-    //}}}
-    #[test] // add_many_mod_change {{{
+    
+    #[test] // add_many_mod_change 
     fn add_many_mod_change() {
         let mut b = CircuitBuilder::new();
         let n = 113;
@@ -654,8 +654,8 @@ mod plaintext {
             assert_eq!(out[0], s);
         }
     }
-    // }}}
-    #[test] // constants {{{
+    
+    #[test] // constants 
     fn constants_Zq() {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
@@ -676,9 +676,9 @@ mod plaintext {
             assert_eq!(z[0], (x + c) % q);
         }
     }
-    //}}}
+    
 
-    #[test] // constants {{{
+    #[test] // constants 
         fn constants_GF4() {
             let mut b = CircuitBuilder::new();
             let mut rng = thread_rng();
@@ -699,7 +699,7 @@ mod plaintext {
                 assert_eq!(z[0], (x ^ c) as u16);
             }
         }
-        //}}}
+        //
 }
 
 #[cfg(test)]
@@ -712,7 +712,7 @@ mod bundle {
     use itertools::Itertools;
     use rand::thread_rng;
 
-    #[test] // bundle input and output {{{
+    #[test] // bundle input and output
     fn test_bundle_input_output() {
         let mut rng = thread_rng();
         let q = rng.gen_usable_composite_modulus();
@@ -734,8 +734,8 @@ mod bundle {
         }
     }
 
-    //}}}
-    #[test] // bundle addition {{{
+    //
+    #[test] // bundle addition 
     fn test_addition() {
         let mut rng = thread_rng();
         let q = rng.gen_usable_composite_modulus();
@@ -755,8 +755,8 @@ mod bundle {
             assert_eq!(z, (x + y) % q);
         }
     }
-    //}}}
-    #[test] // bundle subtraction {{{
+    
+    #[test] // bundle subtraction 
     fn test_subtraction() {
         let mut rng = thread_rng();
         let q = rng.gen_usable_composite_modulus();
@@ -776,8 +776,8 @@ mod bundle {
             assert_eq!(z, (x + q - y) % q);
         }
     }
-    //}}}
-    #[test] // bundle cmul {{{
+    
+    #[test] // bundle cmul
     fn test_cmul() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(16);
@@ -796,8 +796,8 @@ mod bundle {
             assert_eq!(z, (x * y) % q);
         }
     }
-    //}}}
-    #[test] // bundle multiplication {{{
+    
+    #[test] // bundle multiplication 
     fn test_multiplication() {
         let mut rng = thread_rng();
         let q = rng.gen_usable_composite_modulus();
@@ -817,8 +817,8 @@ mod bundle {
             assert_eq!(z, (x * y) % q);
         }
     }
-    // }}}
-    #[test] // bundle cexp {{{
+    
+    #[test] // bundle cexp 
     fn test_cexp() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(10);
@@ -838,8 +838,8 @@ mod bundle {
             assert_eq!(z, should_be);
         }
     }
-    // }}}
-    #[test] // bundle remainder {{{
+     
+    #[test] // bundle remainder 
     fn test_remainder() {
         let mut rng = thread_rng();
         let ps = rng.gen_usable_factors();
@@ -860,8 +860,8 @@ mod bundle {
             assert_eq!(z, should_be);
         }
     }
-    //}}}
-    #[test] // bundle equality {{{
+    
+    #[test] // bundle equality
     fn test_equality() {
         let mut rng = thread_rng();
         let q = rng.gen_usable_composite_modulus();
@@ -885,8 +885,8 @@ mod bundle {
             assert_eq!(res, &[(x == y) as u16]);
         }
     }
-    //}}}
-    #[test] // bundle mixed_radix_addition {{{
+    
+    #[test] // bundle mixed_radix_addition 
     fn test_mixed_radix_addition() {
         let mut rng = thread_rng();
 
@@ -927,8 +927,8 @@ mod bundle {
             assert_eq!(util::from_mixed_radix(&res, &mods), should_be);
         }
     }
-    //}}}
-    #[test] // bundle relu {{{
+    
+    #[test] // bundle relu 
     fn test_relu() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(10);
@@ -948,8 +948,8 @@ mod bundle {
             assert_eq!(z, should_be);
         }
     }
-    //}}}
-    #[test] // bundle sgn {{{
+    
+    #[test] // bundle sgn 
     fn test_sgn() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(10);
@@ -969,8 +969,8 @@ mod bundle {
             assert_eq!(z, should_be);
         }
     }
-    //}}}
-    #[test] // bundle leq {{{
+    
+    #[test] // bundle leq 
     fn test_leq() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(10);
@@ -994,8 +994,8 @@ mod bundle {
             assert_eq!(res, &[(x < y) as u16], "x={} y={}", x, y);
         }
     }
-    //}}}
-    #[test] // bundle max {{{
+    
+    #[test] // bundle max 
     fn test_max() {
         let mut rng = thread_rng();
         let q = util::modulus_with_width(10);
@@ -1022,8 +1022,8 @@ mod bundle {
             assert_eq!(z, should_be);
         }
     }
-    //}}}
-    #[test] // binary addition {{{
+    
+    #[test] // binary addition 
     fn test_binary_addition() {
         let mut rng = thread_rng();
         let n = 2 + (rng.gen_usize() % 10);
@@ -1052,8 +1052,8 @@ mod bundle {
             assert_eq!(res[0], carry_should_be);
         }
     }
-    //}}}
-    #[test] // binary demux {{{
+    
+    #[test] // binary demux 
     fn test_bin_demux() {
         let mut rng = thread_rng();
         let nbits = 1 + (rng.gen_usize() % 7);
@@ -1082,7 +1082,7 @@ mod bundle {
             }
         }
     }
-    //}}}
+    
 }
 
 
@@ -1092,7 +1092,7 @@ mod GF4 {
     use super::*;   
     use rand::seq::SliceRandom;
 
-    #[test] // GF4 input and output {{{
+    #[test] // GF4 input and output
         fn test_GF4_input_output() {
             let mut rng = thread_rng();
             let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
@@ -1112,8 +1112,8 @@ mod GF4 {
             }
         }
     
-        //}}}
-        #[test] // GF4 addition {{{
+        
+        #[test] // GF4 addition 
         fn test_GF4_addition() {
             let mut rng = thread_rng();
             let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
@@ -1132,8 +1132,8 @@ mod GF4 {
                 assert_eq!(res[0], (x ^ y) as u16);
             }
         }
-        //}}}
-        #[test] // GF4 subtraction {{{
+        
+        #[test] // GF4 subtraction 
         fn test_GF4_subtraction() {
             let mut rng = thread_rng();
             let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
@@ -1152,8 +1152,8 @@ mod GF4 {
                 assert_eq!(res[0], (x ^ y));
             }
         }
-        //}}}
-        #[test] // bundle cmul {{{
+        
+        #[test] // bundle cmul 
         fn test_GF4_cmul() {
             let p = Modulus::GF4 { p: 19 };
     
@@ -1164,14 +1164,14 @@ mod GF4 {
             b.output(&z).unwrap();
             let c = b.finish();
     
-            // add for loop later?
+            
             let x = &[2_u16.pow(3)+1];
             let res = c.eval_plain(x, &[]).unwrap();
             assert_eq!(res[0], 2_u16.pow(3)+2_u16.pow(2)+2);
         }
-        //}}}
+        
 
-        #[test] // GF4 proj {{{
+        #[test] // GF4 proj 
         fn test_GF4_proj() {
             let mut rng = thread_rng();
             let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
@@ -1189,7 +1189,7 @@ mod GF4 {
                 assert_eq!(res[0], (x[0]*9 + 1) % p.size());
             }
         }
-        //}}}
+        
 }
 
 #[cfg(test)]
@@ -1205,7 +1205,7 @@ mod GF8 {
         0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
         0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
 
-    #[test] // GF8 input and output {{{
+    #[test] // GF8 input and output
         fn test_GF8_input_output() {
             let mut rng = thread_rng();
             let p = *IRRED_GF8.choose(&mut rng).unwrap();
@@ -1225,8 +1225,8 @@ mod GF8 {
             }
         }
     
-        //}}}
-        #[test] // GF8 addition {{{
+        
+        #[test] // GF8 addition 
         fn test_GF8_addition() {
             let mut rng = thread_rng();
             let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
@@ -1245,8 +1245,8 @@ mod GF8 {
                 assert_eq!(res[0], (x ^ y) as u16);
             }
         }
-        //}}}
-        #[test] // GF8 subtraction {{{
+        
+        #[test] // GF8 subtraction 
         fn test_GF8_subtraction() {
             let mut rng = thread_rng();
             let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
@@ -1265,8 +1265,8 @@ mod GF8 {
                 assert_eq!(res[0], (x ^ y));
             }
         }
-        //}}}
-        #[test] // GF8 cmul {{{
+        
+        #[test] 
         fn test_GF8_cmul() {
             let p = Modulus::GF8 { p: 283 };
     
@@ -1277,14 +1277,14 @@ mod GF8 {
             b.output(&z).unwrap();
             let c = b.finish();
     
-            // add for loop later?
+            
             let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
             let res = c.eval_plain(x, &[]).unwrap();
             assert_eq!(res[0], 2_u16.pow(7)+2_u16.pow(4)+1);
         }
-        //}}}
+        
 
-        #[test] // GF8 proj {{{
+        #[test] // GF8 proj 
         fn test_GF8_proj() {
             let mut rng = thread_rng();
             let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
@@ -1302,7 +1302,7 @@ mod GF8 {
                 assert_eq!(res[0], (x[0]*9 + 1) % p.size());
             }
         }
-        //}}}
+        
 }
 
 #[cfg(test)]
@@ -1316,7 +1316,7 @@ mod GFk {
     (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
     (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)]; 
 
-    #[test] // GFk input and output {{{
+    #[test] // GFk input and output 
         fn test_GFk_input_output() {
             let mut rng = thread_rng();
             let poly = *IRRED_GFk.choose(&mut rng).unwrap();
@@ -1337,8 +1337,8 @@ mod GFk {
             }
         }
     
-        //}}}
-        #[test] // GFk addition {{{
+        
+        #[test] // GFk addition 
         fn test_GFk_addition() {
             let mut rng = thread_rng();
             let poly = *IRRED_GFk.choose(&mut rng).unwrap();
@@ -1358,8 +1358,8 @@ mod GFk {
                 assert_eq!(res[0], (x ^ y) as u16);
             }
         }
-        //}}}
-        #[test] // GFk subtraction {{{
+        
+        #[test] // GFk subtraction 
         fn test_GFk_subtraction() {
             let mut rng = thread_rng();
             let poly = *IRRED_GFk.choose(&mut rng).unwrap();
@@ -1379,8 +1379,8 @@ mod GFk {
                 assert_eq!(res[0], (x ^ y));
             }
         }
-        //}}}
-        #[test] // GFk cmul {{{
+        
+        #[test] // GFk cmul
         fn test_GFk_cmul() {
             let p = Modulus::GFk { p: 283, k: 8 };
     
@@ -1391,14 +1391,14 @@ mod GFk {
             b.output(&z).unwrap();
             let c = b.finish();
     
-            // add for loop later?
+            
             let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
             let res = c.eval_plain(x, &[]).unwrap();
             assert_eq!(res[0], 2_u16.pow(7)+2_u16.pow(4)+1);
         }
-        //}}}
+        
 
-        #[test] // GF8 proj {{{
+        #[test] // GF8 proj
         fn test_GF8_proj() {
             let mut rng = thread_rng();
             let poly = *IRRED_GFk.choose(&mut rng).unwrap();
@@ -1417,5 +1417,5 @@ mod GFk {
                 assert_eq!(res[0], (x[0]*9 + 1) % p.size());
             }
         }
-        //}}}
+        
 }
