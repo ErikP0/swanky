@@ -110,7 +110,7 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
         timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     );
     write!(file, "Garbler :: Garbling circuit: {} ms\nPer permutation: {} us\n",
-        timing, (timing as f64) / ((s_runs*p_runs) as f64)
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
     let start = SystemTime::now();
