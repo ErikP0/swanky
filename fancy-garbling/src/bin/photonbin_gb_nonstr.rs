@@ -203,7 +203,7 @@ fn main() {
 
     let total = SystemTime::now();
 
-    write!(file, "--- GARBLER START: {} permutation(s) in series ---
+    write!(file, "--- BIN GARBLER START: {} permutation(s) in series ---
                    {} permutation(s) in parallel
 ---           PHOTON{}                ---\n\n",
                 s_runs, p_runs, perm_id).unwrap();

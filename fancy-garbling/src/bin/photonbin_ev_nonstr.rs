@@ -195,7 +195,7 @@ fn main() {
         .open("./helper_test_files/output_TCPnonstr_log.txt")
         .unwrap();
 
-    write!(file, "--- EVALUATOR START: {} permutation(s) in series ---
+    write!(file, "--- BIN EVALUATOR START: {} permutation(s) in series ---
                    {} permutation(s) in parallel
 ---           PHOTON{}                ---\n\n",
                 s_runs, p_runs, perm_id).unwrap();
