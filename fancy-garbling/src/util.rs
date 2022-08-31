@@ -15,7 +15,7 @@ use core::arch::x86_64::*;
 use itertools::Itertools;
 use scuttlebutt::Block;
 use std::collections::HashMap;
-use ndarray::{arr1,Array2,ShapeBuilder};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // tweak functions for garbling
@@ -191,6 +191,8 @@ pub fn from_poly_p_u128(elts: &Vec<u16>, p: u16, k: u8) -> u128 {
     x
 }
 
+/// Field multiplication (a*b) in GF(2^k) using the following algorithm 
+/// https://en.wikipedia.org/wiki/Finite_field_arithmetic#C_programming_example
 pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
     let mut x = a; let mut ret = 0;
 	
@@ -204,74 +206,7 @@ pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
 	}
 	return ret as u8;
 }
-/// shift-and-Add MSB algorithm for multiplication
-pub fn mul_GF4(a: u8 ,b: u8, p: u8) -> u8 {
-    let mut c: u8 = 0; 
-    let bbits = u8_to_bits(b, 8);
 
-    for i in (0..8).rev() {
-        c <<= 1;
-        c = reduce_p_GF4(c ^ bbits[i]*a, p);
-    }
-    c
-}
-
-pub fn construct_reduction_matrix(p: u16, k: u8) -> Vec<u8> {
-    let mut mtrx: Vec<u8> = vec![0; (k*(k-1)).into()]; //Store all elemnents in a vector column-major order
-
-    // make first column : store variable FIRST_COLUMN
-    let first_col = p ^ 2_u16.pow(k.into()); // subtract 2^k from p to get first column 
-    
-    // fill in first column mtrx[0] 
-    fill_in_column(&mut mtrx, 0, first_col as u8, k);
-    
-    let mut previous_col: u16 = first_col;
-    for i in 1..k-1 {
-        previous_col <<= 1;
-        if previous_col>2_u16.pow(k.into()){
-            previous_col -= 2_u16.pow(k.into()); 
-            previous_col ^= first_col;
-        } 
-        fill_in_column(&mut mtrx, i, previous_col as u8, k);
-    }
-
-    mtrx
-}
-
-fn fill_in_column(mtrx: &mut Vec<u8>,index: u8, column: u8, k: u8) {
-    let column_bits = &u8_to_bits(column, 8)[0..k as usize];
-
-    for i in 0..column_bits.len() {
-        mtrx[(index*k) as usize + i] = column_bits[i];
-    }
-} 
-
-
-/// Divides a u16 that represents a polynomial by a quotient field's irreducible polynomial p.
-/// p = X^4 + X + 1
-///  
-/// [c7 c6 c5 c4 c3 c2 c1 c0] ==> [0 0 0 0 C3 C2 C1 C0] 
-/// C0 = c0 + c4 
-/// C1 = c1 + c4 + c5
-/// C2 = c2 + c5 + c6
-/// C3 = c3 + c6
-pub fn reduce_p_GF4(x: u8, p: u8) -> u8 {
-    let matrix = Array2::from_shape_vec((4,3).strides((1,4)), construct_reduction_matrix(p as u16, 4)).unwrap();
- 
-    let xbits = u8_to_bits(x, 8);
-    let mut vector1 = arr1(&xbits[0..4]);
-    let vector2 = arr1(&xbits[4..7]);
-   
-    let new_vector = matrix.dot(&vector2);
-    vector1 += &new_vector;
-
-    vector1.iter_mut().for_each(|c| *c = *c % 2);
-
-    let mut result = vector1.to_vec();
-
-    result.append(&mut vec![0,0,0,0]);
-    u8_from_bits(&result)
-}
 
 /// Convert little-endian mixed radix digits into u128.
 pub fn from_mixed_radix(digits: &[u16], radii: &[u16]) -> u128 {
@@ -604,7 +539,7 @@ impl<R: rand::Rng + Sized> RngExt for R {}
 mod tests {
     use std::vec;
 
-    use super::{*, reduce_p_GF4};
+    use super::*;
     use crate::util::RngExt;
     use rand::{thread_rng};
 
@@ -675,22 +610,7 @@ mod tests {
 
    
 
-    #[test] 
-    fn reduce_poly_GF4() {
-        let x_reduced = reduce_p_GF4(16, 19);
-        let correct = 3;
-        assert_eq!(x_reduced,correct);
-        let x_reduced = reduce_p_GF4(16, 25);
-        let correct = 9; 
-        assert_eq!(x_reduced,correct);
-    }
 
-    #[test]
-    fn reduction_matrix_GF4() {
-        let matrix = construct_reduction_matrix(19 , 4);
-        let correct_matrix: Vec<u8> = vec![1,1,0,0,0,1,1,0,0,0,1,1];
-        assert_eq!(matrix,correct_matrix);
-    }  
 }
 
 #[cfg(all(feature = "nightly", test))]

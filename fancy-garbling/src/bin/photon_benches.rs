@@ -1,12 +1,11 @@
 extern crate fancy_garbling;
 
-use fancy_garbling::{informer::{InformerStats, Informer},
-                     circuit::{Circuit, CircuitBuilder, CircuitRef}, 
-                     dummy::Dummy, Modulus, photon::*, 
+use fancy_garbling::{circuit::{Circuit, CircuitBuilder, CircuitRef}, 
+                    Modulus, photon::*, 
                      Fancy, photon_bin::*, twopac::semihonest::{Garbler, Evaluator},
                     FancyInput, classic::garble};
 use ocelot::ot::{AlszReceiver as OtReceiver, AlszSender as OtSender};
-use scuttlebutt::{AesRng, UnixChannel, TrackUnixChannel, TrackChannel};
+use scuttlebutt::{AesRng,TrackChannel};
 use std::{time::{SystemTime}, vec};
 use std::{
     io::{BufReader, BufWriter},
