@@ -283,6 +283,7 @@ fn main() {
             }
             Err(e) => println!("Connection failed: {}", e),
         }
+        break;
     }
 
 
