@@ -30,9 +30,9 @@ fn main() {
     let pruns = 20;
 
     // INPUT photon100
-    // let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
-    // let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
-    // const D: usize = 5;
+    let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 4, 0, 0, 0, 0, 1, 0, 0 ,0, 0, 4, 0, 0 ,0, 0, 1, 0, 0 ,0, 1, 0];
+    let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
+    const D: usize = 5;
 
     // INPUT photon144 
     // let input_gf: Vec<u16> = vec![0, 0 ,0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 1, 0, 0 ,0, 0, 0, 0, 0, 0 ,0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
@@ -45,22 +45,22 @@ fn main() {
     // const D: usize = 7;
 
     // INPUT photon256
-    let input_gf: Vec<u16> =vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
-    let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,3,8,2,0,2,0];
-    const D: usize = 8;
+    // let input_gf: Vec<u16> =vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
+    // let input_bin: Vec<u16> = vec![0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,3,8,2,0,2,0];
+    // const D: usize = 8;
 
 
 
     // GF
-    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_256, &mut garbler_input, D, &input_gf, &poly);
-    let circ_gf_extended = build_extended_circuit_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_256, &mut CircuitBuilder::constant, D, &input_gf, &poly, sruns, pruns);
+    let circ_gf = build_circ_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut garbler_input, D, &input_gf, &poly);
+    let circ_gf_extended = build_extended_circuit_gf(&mut <CircuitBuilder as PhotonGadgets>::photon_100, &mut CircuitBuilder::constant, D, &input_gf, &poly, sruns, pruns);
     let circ_gf_bench = benchmark_streaming(&circ_gf, input_gf.clone(), vec![]);
     let eval_time_gf = benchmark_non_streaming(&circ_gf_extended, vec![], vec![]);
 
 
     // BIN
-    let circ_bin = build_circ_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut garbler_input, &input_bin, 4);
-    let circ_bin_extended = build_extended_circuit_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_256, &mut CircuitBuilder::constant, &input_bin, 4, sruns, pruns);
+    let circ_bin = build_circ_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut garbler_input, &input_bin, 4);
+    let circ_bin_extended = build_extended_circuit_bin::<D,_,_>(&mut <CircuitBuilder as PhotonFancyExt>::photon_100, &mut CircuitBuilder::constant, &input_bin, 4, sruns, pruns);
     let circ_bin_bench = benchmark_streaming(&circ_bin, encode_input_bin::<D>(input_bin.clone(), 4), vec![]);
     let eval_time_bin = benchmark_non_streaming(&circ_bin_extended, vec![], vec![]);
 
