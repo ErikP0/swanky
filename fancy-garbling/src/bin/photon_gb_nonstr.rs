@@ -5,8 +5,7 @@ extern crate fancy_garbling;
 // use criterion::{criterion_group, criterion_main, Criterion};
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
-    twopac::semihonest::Garbler,
-    FancyInput, Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError, classic::garble,
+    Modulus, photon::PhotonGadgets, Fancy, errors::CircuitBuilderError, classic::garble,
     Wire, 
 };
 use itertools::Itertools;
@@ -90,7 +89,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
 }
 
 fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize, s_runs: usize) -> Vec<u16> {
-    let n_gb_inputs = gb_inputs.len();
+    // let n_gb_inputs = gb_inputs.len();
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
@@ -136,7 +135,7 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs*p_runs]);
 
     let mut inputs = Vec::with_capacity(p_runs*n_ev_inputs*(modulus.size() as f32).log2() as usize);
-    let mut wire = Wire::default(); let mut delta = Wire::default();
+    let mut wire: Wire; let mut delta: Wire;
 
     for run in 0..p_runs {
         for i in 0..n_ev_inputs {    

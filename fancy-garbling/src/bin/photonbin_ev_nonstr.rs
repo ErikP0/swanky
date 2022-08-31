@@ -187,8 +187,8 @@ fn main() {
     let p_runs: usize = args[4].parse().unwrap();
     let circ;
     let d; let input; let n;
-    let mut output;
-    let pre = SystemTime::now();
+    let output;
+    // let pre = SystemTime::now();
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(!Path::new("./helper_test_files/output_TCPnonstr_log.txt").exists())
@@ -259,7 +259,7 @@ fn main() {
     let listener = TcpListener::bind(EV_ADDR).unwrap();
     println!("Evaluator listening on {}", EV_ADDR);
 
-    let pre_tot = pre.elapsed().unwrap().as_millis();
+    // let pre_tot = pre.elapsed().unwrap().as_millis();
     loop {
         match listener.accept() {
             Ok((receiver, addr)) => {

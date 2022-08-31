@@ -144,7 +144,7 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     let zero_ev = en.encode_evaluator_inputs(&vec![0; n_ev_inputs*p_runs*n]);
 
     let mut inputs = Vec::with_capacity(n*p_runs*n_ev_inputs as usize);
-    let mut wire = Wire::default(); let mut delta = Wire::default();
+    let mut wire: Wire; let mut delta: Wire;
 
     for run in 0..p_runs {
         for i in 0..n_ev_inputs*n {    

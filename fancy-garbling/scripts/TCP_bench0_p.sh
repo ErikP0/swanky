@@ -1,5 +1,8 @@
 #!/bin/bash
 
+cargo run --bin photon_ev_nonstr --features="serde1" --release 100 gb 1 1
+cargo run --bin photonbin_ev_nonstr --features="serde1" --release 100 gb 1 1
+
 for P_RUNS in {10..500..10}
 do
     cargo run --bin photon_ev_nonstr --features="serde1" --release 100 gb 1 $P_RUNS
