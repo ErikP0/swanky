@@ -5,8 +5,7 @@ extern crate fancy_garbling;
 // use criterion::{criterion_group, criterion_main, Criterion};
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
-    twopac::semihonest::Garbler,
-    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy, errors::CircuitBuilderError, classic::garble,
+    Modulus, photon_bin::PhotonFancyExt, Fancy, classic::garble,
     Wire, 
 };
 use itertools::Itertools;
@@ -17,8 +16,8 @@ use std::{
     time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
-// const EV_ADDR: &str = "10.2.33.45:9481";
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
+// const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;

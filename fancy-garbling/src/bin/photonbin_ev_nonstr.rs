@@ -6,12 +6,11 @@ extern crate fancy_garbling;
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
     twopac::semihonest::Evaluator,
-    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy, errors::CircuitBuilderError, classic::GarbledCircuit,
+    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy, classic::GarbledCircuit,
 };
 use itertools::Itertools;
 use ocelot::ot::AlszReceiver as OtReceiver;
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
-// use core::slice::SlicePattern;
 use std::{
     io::{BufReader, BufWriter, Write, Read},
     net::{TcpStream, TcpListener},
@@ -185,7 +184,7 @@ fn main() {
     let gb_ev = &args[2];
     let s_runs: usize = args[3].parse().unwrap();
     let p_runs: usize = args[4].parse().unwrap();
-    let modulus; let circ;
+    let circ;
     let d; let input; let n;
     let mut output;
     let pre = SystemTime::now();
@@ -203,7 +202,6 @@ fn main() {
 
     match perm_id.as_ref() {
         "100" => {
-            modulus = Modulus::GF4 { p: 19 };
             d = 5; n = 4;
             input =   vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
             if gb_ev == "ev" {
@@ -213,7 +211,6 @@ fn main() {
             }
         },
         "144" => {
-            modulus = Modulus::GF4 { p: 19 };
             d = 6; n = 4;
             input = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,1,0];
             if gb_ev == "ev" {
@@ -223,7 +220,6 @@ fn main() {
             }
         },
         "196" => {
-            modulus = Modulus::GF4 { p: 19 };
             d = 7; n = 4;
             input = vec![0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,2,8,2,4,2,4];
             if gb_ev == "ev" {
@@ -233,7 +229,6 @@ fn main() {
             }
         },
         "256" => {
-            modulus = Modulus::GF4 { p: 19 };
             d = 8; n = 4;
             input = vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
             if gb_ev == "ev" {
@@ -243,7 +238,6 @@ fn main() {
             }
         },
         "288" => {
-            modulus = Modulus::GF8 { p: 283 };
             d = 6; n = 8;
             input = vec![00, 00, 00, 00, 00, 00, 
                         00, 00, 00, 00, 00, 00, 

@@ -1461,3 +1461,75 @@ Garbler :: Total: 483 ms
 
 --------------------------------------
 
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 208 ms
+Per permutation: 52 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 267 ms
+Per permutation: 66.75 ms
+Garbler :: Garbling circuit: 753 ms
+Per permutation: 188.25 ms
+Garbler :: Parsing & sending garbled circuit: 202 ms
+Per permutation: 50.5 ms
+Evaluator :: Receiving & parsing garbled circuit: 1407 ms
+Per permutation: 351.75 ms
+Evaluator :: Initialization ext: 156 ms
+Garbler :: Encoding & sending inputs with OT: 2 ms
+Per permutation: 0.5 ms
+Evaluator :: Encoding inputs (with OT): 46 ms
+Per permutation: 11.5 ms
+Evaluator :: Circuit evaluation: 378 ms
+Per permutation: 94.5 ms
+Evaluator :: Total: 2234 ms
+ 
+                              Average computing time / permutation: 558.5 ms
+
+
+Garbler :: Total: 2293 ms
+ 
+                          Average computing time / permutation: 573.25 ms
+
+--------------------------------------
+
+--- EVALUATOR START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 172 ms
+Per permutation: 43 ms
+--- GARBLER START: 2 permutation(s) in series ---
+                   2 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 214 ms
+Per permutation: 53.5 ms
+Garbler :: Garbling circuit: 365 ms
+Per permutation: 91.25 ms
+Garbler :: Parsing & sending garbled circuit: 191 ms
+Per permutation: 47.75 ms
+Evaluator :: Receiving & parsing garbled circuit: 996 ms
+Per permutation: 249 ms
+Evaluator :: Initialization ext: 142 ms
+Garbler :: Encoding & sending inputs with OT: 2 ms
+Per permutation: 0.5 ms
+Evaluator :: Encoding inputs (with OT): 46 ms
+Per permutation: 11.5 ms
+Evaluator :: Circuit evaluation: 260 ms
+Per permutation: 65 ms
+Evaluator :: Total: 1619 ms
+ 
+                              Average computing time / permutation: 404.75 ms
+
+
+Garbler :: Total: 1663 ms
+ 
+                          Average computing time / permutation: 415.75 ms
+
+--------------------------------------
+
