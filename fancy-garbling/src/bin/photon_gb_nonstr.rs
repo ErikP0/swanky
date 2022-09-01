@@ -289,29 +289,32 @@ fn main() {
         },
         &_ => panic!("Command line argument is not a right permutation ID!")
     }
-    match TcpStream::connect(EV_ADDR) {
-        Ok(sender) => {
-            let total = SystemTime::now();
-            println!("Successfully connected to evaluator on {}", EV_ADDR);
-            if gb_ev == "ev" {
-                out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs,s_runs);
-            } else {
-                let mut gbs = vec![0; p_runs*input.len()];
-                (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
-                out = run_circuit(&circ, sender, &gbs, 0, &modulus, p_runs, s_runs);
+
+    loop {
+        match TcpStream::connect(EV_ADDR) {
+            Ok(sender) => {
+                let total = SystemTime::now();
+                println!("Successfully connected to evaluator on {}", EV_ADDR);
+                if gb_ev == "ev" {
+                    out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs,s_runs);
+                } else {
+                    let mut gbs = vec![0; p_runs*input.len()];
+                    (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
+                    out = run_circuit(&circ, sender, &gbs, 0, &modulus, p_runs, s_runs);
+                }
+                println!("output: {:?}", out);
+                let tot = total.elapsed().unwrap().as_millis();
+                println!("Total: {} ms", tot);
+                println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs * p_runs) as f64));
+                write!(file, "Garbler :: Total: {} ms\n 
+                            Average computing time / permutation: {} ms\n
+    --------------------------------------\n\n", tot, (tot as f64)/((s_runs * p_runs) as f64)).unwrap();
+                break;
+
             }
-            println!("output: {:?}", out);
-            let tot = total.elapsed().unwrap().as_millis();
-            println!("Total: {} ms", tot);
-            println!("Average computing time / permutation: {} ms", (tot as f64)/((s_runs * p_runs) as f64));
-            write!(file, "Garbler :: Total: {} ms\n 
-                          Average computing time / permutation: {} ms\n
---------------------------------------\n\n", tot, (tot as f64)/((s_runs * p_runs) as f64)).unwrap();
-
+            Err(e) => println!("Failed to connect to evaluator: {}\nTrying again...", e)
         }
-        Err(e) => println!("Failed to connect to evaluator: {}", e)
     }
-
 
 }
 
