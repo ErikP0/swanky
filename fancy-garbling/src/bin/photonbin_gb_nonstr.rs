@@ -89,7 +89,7 @@ fn encode_input_bin(input: Vec<u16>, d: usize, n: usize) -> Vec<u16>{
     fill_nbit::<_, _>(&input, &mut |i| i, d, n).into_iter().flatten().flatten().collect()
 }
 
-fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, d: usize, n: usize, p_runs: usize, s_runs: usize) -> Vec<u16> {
+fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, d: usize, n: usize, p_runs: usize, s_runs: usize) -> Vec<u16> {
     let n_gb_inputs = gb_inputs.len();
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -130,7 +130,7 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
     
     let mut ot = OtSender::init(&mut channel, &mut rng).unwrap();
     let start = SystemTime::now();
-    let mut d_eff;
+    let d_eff;
     if n_gb_inputs == 0 {
         d_eff = 0;
     } else {d_eff = d;}
@@ -191,7 +191,7 @@ fn main() {
     let gb_ev = &args[2];
     let s_runs: usize = args[3].parse().unwrap();
     let p_runs: usize = args[4].parse().unwrap();
-    let modulus; let circ;
+    let circ;
     let d; let input; let n;
     let out;
     let mut file = fs::OpenOptions::new()
@@ -209,7 +209,7 @@ fn main() {
                 s_runs, p_runs, gb_ev, perm_id).unwrap();
     match perm_id.as_ref() {
         "100" => {
-            modulus = Modulus::GF4 { p: 19 };
+            // modulus = Modulus::GF4 { p: 19 };
             d = 5; n = 4;
             input =   vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,1,4,1,0];
             if gb_ev == "ev" {
@@ -219,7 +219,7 @@ fn main() {
             }
         },
         "144" => {
-            modulus = Modulus::GF4 { p: 19 };
+            // modulus = Modulus::GF4 { p: 19 };
             d = 6; n = 4;
             input = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,1,0];
             if gb_ev == "ev" {
@@ -229,7 +229,7 @@ fn main() {
             }
         },
         "196" => {
-            modulus = Modulus::GF4 { p: 19 };
+            // modulus = Modulus::GF4 { p: 19 };
             d = 7; n = 4;
             input = vec![0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,0,0,0,0,0,0, 0,2,8,2,4,2,4];
             if gb_ev == "ev" {
@@ -239,7 +239,7 @@ fn main() {
             }
         },
         "256" => {
-            modulus = Modulus::GF4 { p: 19 };
+            // modulus = Modulus::GF4 { p: 19 };
             d = 8; n = 4;
             input = vec!(0, 0 ,0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 3, 0, 0 ,0, 0, 0, 0, 0, 8, 0, 0 ,0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0);
             if gb_ev == "ev" {
@@ -249,7 +249,7 @@ fn main() {
             }
         },
         "288" => {
-            modulus = Modulus::GF8 { p: 283 };
+            // modulus = Modulus::GF8 { p: 283 };
             d = 6; n = 8;
             input = vec![00, 00, 00, 00, 00, 00, 
                         00, 00, 00, 00, 00, 00, 
@@ -272,11 +272,11 @@ fn main() {
                 let total = SystemTime::now();
                 println!("Successfully connected to evaluator on {}", EV_ADDR);
                 if gb_ev == "ev" {
-                    out = run_circuit(&circ, sender, &[], d*d, &modulus, d, n, p_runs,s_runs);
+                    out = run_circuit(&circ, sender, &[], d*d, d, n, p_runs,s_runs);
                 } else {
                     let mut gbs = vec![0; p_runs*input.len()];
                     (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
-                    out = run_circuit(&circ, sender, &gbs, 0, &modulus, d, n, p_runs, s_runs);
+                    out = run_circuit(&circ, sender, &gbs, 0, d, n, p_runs, s_runs);
                 }
                 println!("output: {:?}", out);
                 let tot = total.elapsed().unwrap().as_millis();

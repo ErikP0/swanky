@@ -156,7 +156,6 @@ fn run_circuit(circ: &Circuit, mut sender: TcpStream, gb_inputs: &[u16], n_ev_in
             }
         }
     }
-    println!("send {}", inputs.len());
     ot.send(&mut channel, &inputs, &mut rng).unwrap();
     
     let timing = start.elapsed().unwrap().as_millis();
