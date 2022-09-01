@@ -112,10 +112,8 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
         timing
     ).unwrap();
     let start = SystemTime::now();
-    let mut xs = Vec::new(); 
-    let mut ys = Vec::new();
-    ev.receive_many(&vec![*modulus; n_gb_inputs*p_runs]).unwrap().into_iter().for_each(|w| xs.push(w));
-    ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
+    let xs = ev.receive_many(&vec![*modulus; n_gb_inputs*p_runs]).unwrap();
+    let ys = ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us",

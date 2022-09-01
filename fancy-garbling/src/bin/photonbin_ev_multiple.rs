@@ -31,7 +31,7 @@ where  P: FnMut(&mut CircuitBuilder, Vec<Vec<Vec<CircuitRef>>>) -> Result<Vec<Ve
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCPnonstr_log.txt")
+        .open("./helper_test_files/output_TCP_log.txt")
         .unwrap();
     let mut b = CircuitBuilder::new();
     let input_wires: Vec<Vec<Vec<Vec<CircuitRef>>>> = (0..pruns).map(|_| fill_nbit::<_,_>(input, &mut |i| fcn_input(&mut b, i as u16, &Modulus::Zq { q: 2 }).unwrap(), d, n)).collect();
@@ -89,7 +89,7 @@ fn encode_input_bin(input: Vec<u16>, d: usize, n: usize) -> Vec<u16>{
     fill_nbit::<_, _>(&input, &mut |i| i, d, n).into_iter().flatten().flatten().collect()
 }
 
-fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, d: usize, n: usize, p_runs: usize, s_runs: usize) 
+fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, d: usize, n: usize, p_runs: usize, s_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
     let d_eff;
@@ -110,54 +110,41 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     let reader = BufReader::new(receiver.try_clone().unwrap());
     let writer = BufWriter::new(receiver.try_clone().unwrap());
     let channel = Channel::new(reader, writer);
-    
+    let d_eff;
+    if n_ev_inputs == 0 {
+        d_eff = 0;
+    } else {d_eff = d;}
+    let mut evs_4bit = Vec::with_capacity(p_runs*d_eff*d_eff);
+    for i in 0..p_runs {
+        evs_4bit.extend(encode_input_bin(ev_inputs[i*d_eff*d_eff..(i*d_eff*d_eff+d_eff*d_eff)].to_vec(), d_eff, n));
+    }
     let start = SystemTime::now();
-    let mut sz_b = [0 as u8; 8];
-    receiver.read_exact(&mut sz_b).unwrap();
-    let sz = u64::from_le_bytes(sz_b);
-    let mut gbc_b = vec![0 as u8; sz as usize]; let gbc_s;
-    receiver.read_exact(&mut gbc_b).unwrap();
-    gbc_s = std::str::from_utf8(&gbc_b).unwrap();
-
-    let gbc: GarbledCircuit = serde_json::from_str(gbc_s).unwrap();
+    let mut ev = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} us",
-        timing, ((timing * 1000) as f64) / (p_runs * s_runs) as f64
-    );
-    write!(file, "Evaluator :: Receiving & parsing garbled circuit: {} ms\nPer permutation: {} us\n",
-        timing, ((timing * 1000) as f64) / (p_runs * s_runs) as f64
-    ).unwrap();
-
-    let start = SystemTime::now();
-    let mut ev_ext = Evaluator::<MyChannel, AesRng, OtReceiver>::new(channel, rng).unwrap();
-    let timing = start.elapsed().unwrap().as_millis();
-    println!(
-        "Evaluator :: Initialization ext: {} ms",
+        "Evaluator :: Initialization: {} ms",
         timing
     );
     write!(file,
-        "Evaluator :: Initialization ext: {} ms\n",
+        "Evaluator :: Initialization: {} ms\n",
         timing
     ).unwrap();
 
     let start = SystemTime::now();
-    let mut xs = Vec::new(); 
-    let mut ys = Vec::new();
-    ev_ext.receive_many(&vec![Modulus::Zq { q: 2 }; n_gb_inputs*n*p_runs]).unwrap().into_iter().for_each(|w| xs.push(w));
-    ev_ext.encode_many(&evs_4bit, &vec![Modulus::Zq { q: 2 }; n_ev_inputs*n]).unwrap().into_iter().for_each(|w| ys.push(w));
+    let xs = ev.receive_many(&vec![Modulus::Zq { q: 2 }; n_gb_inputs*p_runs*n]).unwrap();
+    let ys = ev.encode_many(&evs_4bit, &vec![Modulus::Zq { q: 2 }; n_ev_inputs*n]).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us",
-        timing, ((timing * 1000) as f64) / (p_runs * s_runs) as f64
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     );
     write!(file,
         "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us\n",
-        timing, ((timing *1000) as f64) / (p_runs * s_runs) as f64
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     ).unwrap();
 
     let start = SystemTime::now();
-    let output = gbc.eval(circ, &xs, &ys).unwrap();
+    let output = circ.eval(&mut ev, &xs, &ys).unwrap().unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
         "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us",
@@ -165,12 +152,13 @@ fn run_circuit(circ: &Circuit, mut receiver: TcpStream, ev_inputs: &[u16], n_gb_
     );
     write!(file,
         "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us\n",
-        timing, ((timing *1000) as f64) / ((s_runs*p_runs) as f64)
+        timing, ((timing * 1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
 
+
     let out = output.into_iter().map(|o| {
-        ev_ext.get_channel().write_u16(o).unwrap();
-        ev_ext.get_channel().flush().unwrap();
+        ev.get_channel().write_u16(o).unwrap();
+        ev.get_channel().flush().unwrap();
         o
     }).collect_vec();
     out
@@ -189,9 +177,9 @@ fn main() {
     // let pre = SystemTime::now();
     let mut file = fs::OpenOptions::new()
         .write(true)
-        .create_new(!Path::new("./helper_test_files/output_TCPnonstr_log.txt").exists())
+        .create_new(!Path::new("./helper_test_files/output_TCP_log.txt").exists())
         .append(true)
-        .open("./helper_test_files/output_TCPnonstr_log.txt")
+        .open("./helper_test_files/output_TCP_log.txt")
         .unwrap();
 
     write!(file, "--- BIN EVALUATOR START: {} permutation(s) in series ---

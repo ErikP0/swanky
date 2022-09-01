@@ -16,8 +16,8 @@ use std::{
     time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
-const EV_ADDR: &str = "10.2.33.45:9481";
-// const EV_ADDR: &str = "127.0.0.1:9481";
+// const EV_ADDR: &str = "10.2.33.45:9481";
+const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -111,10 +111,8 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         gb_init
     ).unwrap();
     let start = SystemTime::now();
-    let mut xs = Vec::new(); 
-    let mut ys = Vec::new();
-    gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
-    gb.receive_many(&vec![*modulus; n_ev_inputs*p_runs]).unwrap().into_iter().for_each(|w| ys.push(w));
+    let xs = gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap();
+    let ys = gb.receive_many(&vec![*modulus; n_ev_inputs*p_runs]).unwrap();
     let enc_inp = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Encoding inputs: {} ms",
