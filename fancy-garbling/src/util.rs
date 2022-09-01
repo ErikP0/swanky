@@ -156,7 +156,10 @@ pub fn from_base_q(ds: &[u16], q: u16) -> u128 {
     x
 }
 
-/// Convert a vector of elements in GF(2^4) to a vector of u8s.
+/// Convert a vector of elements in GF(2^k) to a vector of u8s.
+/// Every element in GF(2^k) is represented by its binary representation 
+/// and is then fit into an array of u8 integers.
+/// This function is meant for elements in GF(2⁴) and GF(2⁸) mostly.
 pub fn from_poly_p_array(elts: &Vec<u16>, p: u16, k: u8) -> [u8; 16] {
     debug_assert!(p < 2_u16.pow((k+1) as u32), "field polynomial has a degree that is too high");
     debug_assert!(k == 4 || k == 8);
@@ -180,6 +183,8 @@ pub fn from_poly_p_array(elts: &Vec<u16>, p: u16, k: u8) -> [u8; 16] {
 }
 
 /// Convert a vector of elements in GF(2^k) to a u128.
+/// This function fits the array into the u128 as tightly as possible.
+/// It is meant for elements in GF(2^k) where k is different from 4 or 8.
 pub fn from_poly_p_u128(elts: &Vec<u16>, p: u16, k: u8) -> u128 {
     debug_assert!(p < 2_u16.pow((k+1).into()), "field polynomial has a degree that is too high");
     
@@ -191,8 +196,8 @@ pub fn from_poly_p_u128(elts: &Vec<u16>, p: u16, k: u8) -> u128 {
     x
 }
 
-/// Field multiplication (a*b) in GF(2^k) using the following algorithm 
-/// https://en.wikipedia.org/wiki/Finite_field_arithmetic#C_programming_example
+/// Field multiplication (a*b) in GF(2^k) using the Russian peasant multiplication algorithm.
+/// https://en.wikipedia.org/wiki/Ancient_Egyptian_multiplication#Russian_peasant_multiplication
 pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
     let mut x = a; let mut ret = 0;
 	
@@ -247,6 +252,7 @@ pub fn u128_from_bits(bs: &[u16]) -> u128 {
     x
 }
 
+/// Convert a u8 integer to an array of `n` "bits". Assumes each "bit" is 0 or 1.
 pub fn u8_to_bits(x: u8, n: usize) -> Vec<u8> {
     let mut bits = Vec::with_capacity(n);
     let mut y = x;
@@ -419,23 +425,6 @@ pub fn product(xs: &[u16]) -> u128 {
     xs.iter().fold(1, |acc, &x| acc * x as u128)
 }
 
-/// Raise a u16 to a power mod some value.
-// pub fn powm(inp: u16, pow: u16, modulus: u16) -> u16 {
-//     let mut x = inp as u16;
-//     let mut z = 1;
-//     let mut n = pow;
-//     while n > 0 {
-//         if n % 2 == 0 {
-//             x = x.pow(2) % modulus as u16;
-//             n /= 2;
-//         } else {
-//             z = x * z % modulus as u16;
-//             n -= 1;
-//         }
-//     }
-//     z as u16
-// }
-
 /// Returns `true` if `x` is a power of 2.
 pub fn is_power_of_2(x: u16) -> bool {
     (x & (x - 1)) == 0
@@ -537,11 +526,9 @@ impl<R: rand::Rng + Sized> RngExt for R {}
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
-
     use super::*;
     use crate::util::RngExt;
-    use rand::{thread_rng};
+    use rand::thread_rng;
 
     #[test]
     fn crt_conversion() {

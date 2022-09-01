@@ -87,7 +87,7 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     out
 }
 
-fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, p_runs: usize) 
+fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inputs: usize, modulus: &Modulus, s_runs: usize, p_runs: usize) 
                 -> Vec<u16> {
     let n_ev_inputs = ev_inputs.len();
     let mut file = fs::OpenOptions::new()
@@ -114,29 +114,27 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
-    for _ in 0..p_runs {
-        ev.receive_many(&vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
-        ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
-    }
+    ev.receive_many(&vec![*modulus; n_gb_inputs*p_runs]).unwrap().into_iter().for_each(|w| xs.push(w));
+    ev.encode_many(&ev_inputs, &vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Encoding inputs: {} ms",
-        timing
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     );
     write!(file,
-        "Evaluator :: Encoding inputs: {} ms\n",
-        timing
+        "Evaluator :: Encoding inputs (with OT): {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / (p_runs * s_runs) as f64
     ).unwrap();
     let start = SystemTime::now();
     let output = circ.eval(&mut ev, &xs, &ys).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Circuit evaluation: {} ms",
-        timing
+        "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us",
+        timing, ((timing * 1000) as f64) / ((s_runs*p_runs) as f64)
     );
     write!(file,
-        "Evaluator :: Circuit evaluation: {} ms\n",
-        timing
+        "Evaluator :: Circuit evaluation: {} ms\nPer permutation: {} us\n",
+        timing, ((timing * 1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
     let out = output.unwrap().into_iter().map(|o| {
         ev.get_channel().write_u16(o).unwrap();
@@ -271,9 +269,11 @@ fn main() {
                 println!("Garbler connected on {}", addr);
                 
                 if gb_ev == "ev" {
-                    output = run_circuit(&circ, receiver, &input, 0, &modulus, p_runs);
+                    let mut evs = vec![0; p_runs*input.len()];
+                    (0..p_runs*input.len()).for_each(|i| evs[i] = input[i % input.len()]);
+                    output = run_circuit(&circ, receiver, &evs, 0, &modulus, s_runs, p_runs);
                 } else {
-                    output = run_circuit(&circ, receiver, &[], d*d, &modulus, p_runs);
+                    output = run_circuit(&circ, receiver, &[], d*d, &modulus, s_runs, p_runs);
                 }
     
                 println!("done: {:?}", output);
@@ -281,7 +281,8 @@ fn main() {
                 println!("Total: {} ms", tot + pre_tot);
                 println!("Average computing time / permutation: {} ms", ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64));
                 write!(file, "Evaluator :: Total: {} ms\n 
-                              Average computing time / permutation: {} ms\n\n\n", tot + pre_tot, ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64)).unwrap();
+                              Average computing time / permutation: {} ms
+-------------------------------------------\n\n\n", tot + pre_tot, ((tot + pre_tot) as f64)/((s_runs * p_runs) as f64)).unwrap();
             }
             Err(e) => println!("Connection failed: {}", e),
         }

@@ -13,7 +13,7 @@ use ocelot::ot::{AlszSender as OtSender};
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
     io::{BufReader, BufWriter, Write},
-    time::SystemTime, net::TcpStream, env, fs, fmt::write, path::Path,
+    time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
 const EV_ADDR: &str = "10.2.33.45:9481";
@@ -50,7 +50,7 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     );
     write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        ((timing*1000) as f64) / (pruns + sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
@@ -83,12 +83,12 @@ fn build_photon_circuit_ev<FPERM> (poly: &Modulus, mut perm: FPERM, d: usize, sr
     );
     write!(file, "Garbler :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        ((timing*1000) as f64) / (pruns + sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }
 
-fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, p_runs: usize) -> Vec<u16> {
+fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs: usize, modulus: &Modulus, s_runs: usize, p_runs: usize) -> Vec<u16> {
     let n_gb_inputs = gb_inputs.len();
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -113,10 +113,8 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
     let start = SystemTime::now();
     let mut xs = Vec::new(); 
     let mut ys = Vec::new();
-    for _ in 0..p_runs {
-        gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
-        gb.receive_many(&vec![*modulus; n_ev_inputs]).unwrap().into_iter().for_each(|w| ys.push(w));
-    }
+    gb.encode_many(&gb_inputs, &vec![*modulus; n_gb_inputs]).unwrap().into_iter().for_each(|w| xs.push(w));
+    gb.receive_many(&vec![*modulus; n_ev_inputs*p_runs]).unwrap().into_iter().for_each(|w| ys.push(w));
     let enc_inp = start.elapsed().unwrap().as_millis();
     println!(
         "Garbler :: Encoding inputs: {} ms",
@@ -127,14 +125,13 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
     ).unwrap();
     let start = SystemTime::now();
     circ.eval(&mut gb, &xs, &ys).unwrap();
-    let time_ev = start.elapsed().unwrap().as_millis();
+    let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Garbler :: Circuit garbling: {} ms",
-        time_ev
+        "Garbler :: Garbling circuit: {} ms\nPer permutation: {} us",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     );
-    write!(file,
-        "Garbler :: Circuit garbling: {} ms\n",
-        time_ev
+    write!(file, "Garbler :: Garbling circuit: {} ms\nPer permutation: {} us\n",
+        timing, ((timing*1000) as f64) / ((s_runs*p_runs) as f64)
     ).unwrap();
     let out = (0..circ.noutputs()).map(|_| {
         gb.get_channel().flush().unwrap();
@@ -261,9 +258,11 @@ fn main() {
         Ok(sender) => {
             println!("Successfully connected to evaluator on {}", EV_ADDR);
             if gb_ev == "ev" {
-                out = run_circuit(&circ, sender, &[], d*d, &modulus, p_runs);
+                out = run_circuit(&circ, sender, &[], d*d, &modulus, s_runs, p_runs);
             } else {
-                out = run_circuit(&circ, sender, &input, 0, &modulus, p_runs);
+                let mut gbs = vec![0; p_runs*input.len()];
+                (0..p_runs*input.len()).for_each(|i| gbs[i] = input[i % input.len()]);
+                out = run_circuit(&circ, sender, &gbs, 0, &modulus, s_runs, p_runs);
             }
             println!("output: {:?}", out);
             let tot = total.elapsed().unwrap().as_millis();
