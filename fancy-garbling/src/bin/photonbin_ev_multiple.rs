@@ -103,7 +103,7 @@ fn run_circuit(circ: &Circuit, receiver: TcpStream, ev_inputs: &[u16], n_gb_inpu
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCPnonstr_log.txt")
+        .open("./helper_test_files/output_TCP_log.txt")
         .unwrap();
 
     let rng = AesRng::new();

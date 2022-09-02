@@ -16,8 +16,8 @@ use std::{
     time::SystemTime, net::TcpStream, env, fs, path::Path,
 };
 
-// const EV_ADDR: &str = "10.2.33.45:9481";
-const EV_ADDR: &str = "127.0.0.1:9481";
+const EV_ADDR: &str = "10.2.33.45:9481";
+// const EV_ADDR: &str = "127.0.0.1:9481";
 
 type Reader = BufReader<TcpStream>;
 type Writer = BufWriter<TcpStream>;
@@ -94,7 +94,7 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
     let mut file = fs::OpenOptions::new()
         .write(true)
         .append(true)
-        .open("./helper_test_files/output_TCPnonstr_log.txt")
+        .open("./helper_test_files/output_TCP_log.txt")
         .unwrap();
     
     let rng = AesRng::new();
@@ -114,7 +114,6 @@ fn run_circuit(circ: &Circuit, sender: TcpStream, gb_inputs: &[u16], n_ev_inputs
         gbs_4bit.extend(encode_input_bin(gb_inputs[i*d_eff*d_eff..(i*d_eff*d_eff+d_eff*d_eff)].to_vec(), d_eff, n));
     }
     let xs = gb.encode_many(&gbs_4bit, &vec![Modulus::Zq { q: 2 }; n_gb_inputs*n*p_runs]).unwrap();          // encoded garbler inputs - only W^0
-    println!("yes");
     let ys = gb.receive_many(&vec![Modulus::Zq { q: 2 }; n_ev_inputs*p_runs*n]).unwrap();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
