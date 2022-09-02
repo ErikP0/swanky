@@ -6,13 +6,13 @@ extern crate fancy_garbling;
 use fancy_garbling::{
     circuit::{Circuit, CircuitBuilder, CircuitRef},
     twopac::semihonest::Evaluator,
-    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy, classic::GarbledCircuit,
+    FancyInput, Modulus, photon_bin::PhotonFancyExt, Fancy
 };
 use itertools::Itertools;
 use ocelot::ot::AlszReceiver as OtReceiver;
 use scuttlebutt::{AesRng, Channel, AbstractChannel};
 use std::{
-    io::{BufReader, BufWriter, Write, Read},
+    io::{BufReader, BufWriter, Write},
     net::{TcpStream, TcpListener},
     time::SystemTime, env, fs, path::Path,
 };

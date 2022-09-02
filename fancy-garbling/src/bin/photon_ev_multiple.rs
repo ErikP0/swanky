@@ -44,13 +44,13 @@ fn build_photon_circuit_gb<FPERM>(poly: &Modulus, mut perm: FPERM, d: usize, sru
     let out = b.finish();
     let timing = start.elapsed().unwrap().as_millis();
     println!(
-        "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+        "Evaluator :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     );
-    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} ms\n",
+    write!(file, "Evaluator :: Building circuit: {} ms\nPer permutation: {} us\n",
         timing,
-        (timing as f64) / (pruns * sruns) as f64
+        ((timing*1000) as f64) / (pruns * sruns) as f64
     ).unwrap();
     out
 }

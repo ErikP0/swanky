@@ -1,0 +1,330 @@
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 55 ms
+Per permutation: 137.5 us
+Garbler :: Initialization: 25 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Garbling circuit: 605 ms
+Per permutation: 1512.5 us
+Garbler :: Total: 710 ms
+ 
+                          Average computing time / permutation: 1.775 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 54 ms
+Per permutation: 135 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 1 ms
+Garbler :: Garbling circuit: 601 ms
+Per permutation: 1502.5 us
+Garbler :: Total: 704 ms
+ 
+                          Average computing time / permutation: 1.76 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON144                ---
+
+Garbler :: Building circuit: 86 ms
+Per permutation: 215 us
+Garbler :: Initialization: 23 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Garbling circuit: 896 ms
+Per permutation: 2240 us
+Garbler :: Total: 1064 ms
+ 
+                          Average computing time / permutation: 2.66 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON144                ---
+
+Garbler :: Building circuit: 86 ms
+Per permutation: 215 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 1 ms
+Garbler :: Garbling circuit: 887 ms
+Per permutation: 2217.5 us
+Garbler :: Total: 1057 ms
+ 
+                          Average computing time / permutation: 2.6425 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON196                ---
+
+Garbler :: Building circuit: 116 ms
+Per permutation: 290 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Garbling circuit: 1210 ms
+Per permutation: 3025 us
+Garbler :: Total: 1425 ms
+ 
+                          Average computing time / permutation: 3.5625 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON196                ---
+
+Garbler :: Building circuit: 115 ms
+Per permutation: 287.5 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 2 ms
+Garbler :: Garbling circuit: 1215 ms
+Per permutation: 3037.5 us
+Garbler :: Total: 1435 ms
+ 
+                          Average computing time / permutation: 3.5875 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON256                ---
+
+Garbler :: Building circuit: 189 ms
+Per permutation: 472.5 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Garbling circuit: 1684 ms
+Per permutation: 4210 us
+Garbler :: Total: 2020 ms
+ 
+                          Average computing time / permutation: 5.05 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON256                ---
+
+Garbler :: Building circuit: 191 ms
+Per permutation: 477.5 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 3 ms
+Garbler :: Garbling circuit: 1667 ms
+Per permutation: 4167.5 us
+Garbler :: Total: 2007 ms
+ 
+                          Average computing time / permutation: 5.0175 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 139 ms
+Per permutation: 347.5 us
+Garbler :: Initialization: 24 ms
+Garbler :: Encoding inputs: 0 ms
+Garbler :: Garbling circuit: 9227 ms
+Per permutation: 23067.5 us
+Garbler :: Total: 9433 ms
+ 
+                          Average computing time / permutation: 23.5825 ms
+
+--------------------------------------
+
+--- GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 139 ms
+Per permutation: 347.5 us
+Garbler :: Initialization: 25 ms
+Garbler :: Encoding inputs: 3 ms
+Garbler :: Garbling circuit: 9198 ms
+Per permutation: 22995 us
+Garbler :: Total: 9409 ms
+ 
+                          Average computing time / permutation: 23.5225 ms
+
+--------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   gb has all inputs
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 236 ms
+Per permutation: 590 us
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 us
+Garbler :: Garbling circuit: 375 ms
+Per permutation: 937.5 us
+Garbler :: Total: 418 ms
+ 
+                            Average computing time / permutation: 1.045 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   ev has all inputs
+---           PHOTON100                ---
+
+Garbler :: Building circuit: 225 ms
+Per permutation: 562.5 us
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 us
+Garbler :: Garbling circuit: 376 ms
+Per permutation: 940 us
+Garbler :: Total: 421 ms
+ 
+                            Average computing time / permutation: 1.0525 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   gb has all inputs
+---           PHOTON144                ---
+
+Garbler :: Building circuit: 418 ms
+Per permutation: 1045 us
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 us
+Garbler :: Garbling circuit: 594 ms
+Per permutation: 1485 us
+Garbler :: Total: 651 ms
+ 
+                            Average computing time / permutation: 1.6275 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   ev has all inputs
+---           PHOTON144                ---
+
+Garbler :: Building circuit: 418 ms
+Per permutation: 1045 us
+Garbler :: Encoding & sending inputs with OT: 1 ms
+Per permutation: 2.5 us
+Garbler :: Garbling circuit: 603 ms
+Per permutation: 1507.5 us
+Garbler :: Total: 658 ms
+ 
+                            Average computing time / permutation: 1.645 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   gb has all inputs
+---           PHOTON196                ---
+
+Garbler :: Building circuit: 642 ms
+Per permutation: 1605 us
+Garbler :: Encoding & sending inputs with OT: 0 ms
+Per permutation: 0 us
+Garbler :: Garbling circuit: 875 ms
+Per permutation: 2187.5 us
+Garbler :: Total: 942 ms
+ 
+                            Average computing time / permutation: 2.355 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   ev has all inputs
+---           PHOTON196                ---
+
+Garbler :: Building circuit: 633 ms
+Per permutation: 1582.5 us
+Garbler :: Encoding & sending inputs with OT: 1 ms
+Per permutation: 2.5 us
+Garbler :: Garbling circuit: 908 ms
+Per permutation: 2270 us
+Garbler :: Total: 979 ms
+ 
+                            Average computing time / permutation: 2.4475 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   gb has all inputs
+---           PHOTON256                ---
+
+Garbler :: Building circuit: 988 ms
+Per permutation: 2470 us
+Garbler :: Encoding & sending inputs with OT: 1 ms
+Per permutation: 2.5 us
+Garbler :: Garbling circuit: 1292 ms
+Per permutation: 3230 us
+Garbler :: Total: 1380 ms
+ 
+                            Average computing time / permutation: 3.45 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   ev has all inputs
+---           PHOTON256                ---
+
+Garbler :: Building circuit: 988 ms
+Per permutation: 2470 us
+Garbler :: Encoding & sending inputs with OT: 2 ms
+Per permutation: 5 us
+Garbler :: Garbling circuit: 1256 ms
+Per permutation: 3140 us
+Garbler :: Total: 1347 ms
+ 
+                            Average computing time / permutation: 3.3675 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   gb has all inputs
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 2172 ms
+Per permutation: 5430 us
+Garbler :: Encoding & sending inputs with OT: 1 ms
+Per permutation: 2.5 us
+Garbler :: Garbling circuit: 3933 ms
+Per permutation: 9832.5 us
+Garbler :: Total: 4086 ms
+ 
+                            Average computing time / permutation: 10.215 ms
+
+    --------------------------------------
+
+--- BIN GARBLER START: 20 permutation(s) in series ---
+                   20 permutation(s) in parallel
+                   ev has all inputs
+---           PHOTON288                ---
+
+Garbler :: Building circuit: 2173 ms
+Per permutation: 5432.5 us
+Garbler :: Encoding & sending inputs with OT: 2 ms
+Per permutation: 5 us
+Garbler :: Garbling circuit: 3865 ms
+Per permutation: 9662.5 us
+Garbler :: Total: 4021 ms
+ 
+                            Average computing time / permutation: 10.0525 ms
+
+    --------------------------------------
+

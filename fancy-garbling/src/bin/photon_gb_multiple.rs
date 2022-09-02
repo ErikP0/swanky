@@ -160,8 +160,9 @@ fn main() {
 
     write!(file, "--- GARBLER START: {} permutation(s) in series ---
                    {} permutation(s) in parallel
+                   {} has all inputs
 ---           PHOTON{}                ---\n\n",
-                s_runs, p_runs, perm_id).unwrap();
+                s_runs, p_runs, gb_ev, perm_id).unwrap();
     match perm_id.as_ref() {
         "100" => {
             modulus = Modulus::GF4 { p: 19 };
