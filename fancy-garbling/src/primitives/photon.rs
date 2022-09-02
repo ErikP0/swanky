@@ -1,7 +1,6 @@
 // -*- mode: rust; -*-
 // Copyright © 2022 COSIC 
 // Elias Wils & Robbe Vermeiren
-// See LICENSE for licensing information.
 //
 //
 // Photon paper: https://eprint.iacr.org/2011/609.pdf
@@ -193,6 +192,8 @@ impl<F: Fancy> PhotonState<F>
         Ok(())
     }
 
+    /// First step of a PHOTON permutation round, internal constants `ics` together with a round constant `rc`
+    /// are added to the first row of the state matrix.
     fn AddConstants (
         &mut self,
         f: &mut F,
@@ -216,6 +217,8 @@ impl<F: Fancy> PhotonState<F>
         Ok(())
     }
 
+    /// Second step of a PHOTON permutation round, an `sbox` is applied to the whole state matrix.
+    /// For GF8 this is the forward AES sbox.
     fn SubCells (
         &mut self,
         f: &mut F,
@@ -232,7 +235,7 @@ impl<F: Fancy> PhotonState<F>
         Ok(())
     }
 
-
+    /// Third step of a PHOTON permutation round, where rows are cyclically shifted.
     fn ShiftRows(
         &mut self, 
     ) -> Result<(), F::Error> { 
@@ -250,6 +253,7 @@ impl<F: Fancy> PhotonState<F>
             Ok(())
     }
 
+    /// Inverse of the ShiftRows operation, used for computing an inverse PHOTON permutation.
     fn ShiftRowsInv(
         &mut self, 
     ) -> Result<(), F::Error> { 
@@ -267,6 +271,7 @@ impl<F: Fancy> PhotonState<F>
             Ok(())
     }
 
+    /// Fourth & last step of a PHOTON permutation round, where a matrix-matrix product is performed on the state matrix.
     fn MixColumnsSerial(
         &mut self, 
         f: &mut F,
@@ -298,6 +303,8 @@ impl<F: Fancy> PhotonState<F>
 
         Ok(())
     }
+
+    /// Inverse of the MixColumns step, used for computing an inverse PHOTON permutation.
     fn MixColumnsSerialInv(
         &mut self,
         f: &mut F,
@@ -605,7 +612,7 @@ mod photon_test {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
             let z = b.photon_100(&x_vec).unwrap();
-            b.outputs(&z);
+            b.outputs(&z).unwrap();
             b.finish()
         };
 
@@ -637,7 +644,7 @@ mod photon_test {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
             let z = b.photon_196(&x_vec).unwrap();
-            b.outputs(&z);
+            b.outputs(&z).unwrap();
             b.finish()
         };
 
@@ -674,7 +681,7 @@ mod photon_test {
             let mut b = CircuitBuilder::new();
             let x_vec = b.garbler_inputs(&[x8_x4_x3_x_1; D*D]); 
             let z = b.photon_288(&x_vec).unwrap();
-            b.outputs(&z);
+            b.outputs(&z).unwrap();
             b.finish()
         };
 
@@ -704,6 +711,7 @@ mod photon_test {
         let ics = &[0, 1, 3, 6, 4];
         let x4_x_1 = Modulus::GF4 { p: 19 };
         const D: usize = 5; 
+        let mut rng = AesRng::new();
 
         // Build circuit
         let circ = {
@@ -711,17 +719,116 @@ mod photon_test {
             let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
             let xx = b.photon_100(&x_vec).unwrap();
             let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
-            b.outputs(&z);
+            b.outputs(&z).unwrap();
             b.finish()
         };
 
         // Evaluate with test vector (see test photon80_du)
-        let garbler_input =    &[0, 0 ,0, 0, 4,
-                                0, 0, 0, 0, 1,
-                                0, 0 ,0, 0, 4,
-                                0, 0 ,0, 0, 1,
-                                0, 0 ,0, 1, 0];
-        let res = circ.eval_plain(garbler_input, &[]).unwrap();
+        let garbler_input = (0..D*D).map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let res = circ.eval_plain(&garbler_input, &[]).unwrap();
+        assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn forward_backward_permutation_144() {
+        let Z: &[u16] = &[1, 2, 8, 5, 8, 2];
+        let ics = &[0, 1, 3, 7, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 6; 
+        let mut rng = AesRng::new();
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let xx = b.photon_144(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
+            b.outputs(&z).unwrap();
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input = (0..D*D).map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let res = circ.eval_plain(&garbler_input, &[]).unwrap();
+        assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn forward_backward_permutation_196() {
+        let Z: &[u16] = &[1, 4, 6, 1, 1, 6, 4];
+        let ics = &[0, 1, 2, 5, 3, 6, 4];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 7; 
+        let mut rng = AesRng::new();
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let xx = b.photon_196(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
+            b.outputs(&z).unwrap();
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input = vec!(0, 0 ,0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 2,
+            0, 0 ,0, 0, 0, 0, 8,
+            0, 0 ,0, 0, 0, 0, 2,
+            0, 0 ,0, 0, 0, 0, 4,
+            0, 0, 0, 0, 0, 0, 2,
+            0, 0, 0, 0, 0, 0, 4);
+            // (0..D*D).map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let res = circ.eval_plain(&garbler_input, &[]).unwrap();
+        assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn forward_backward_permutation_256() {
+        let Z: &[u16] = &[2, 4, 2, 11, 2, 8, 5, 6];
+        let ics = &[0, 1, 3, 7, 15, 14, 12, 8];
+        let x4_x_1 = Modulus::GF4 { p: 19 };
+        const D: usize = 8; 
+        let mut rng = AesRng::new();
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x4_x_1; D*D]); 
+            let xx = b.photon_256(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, true).unwrap();
+            b.outputs(&z).unwrap();
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input = (0..D*D).map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let res = circ.eval_plain(&garbler_input, &[]).unwrap();
+        assert_eq!(res,garbler_input);
+    }
+
+    #[test]
+    fn forward_backward_permutation_288() {
+        let Z: &[u16] = &[2, 3, 1, 2, 1, 4];
+        let ics = &[0, 1, 3, 7, 6, 4];
+        let x8 = Modulus::GF8 { p: 283 };
+        const D: usize = 6; 
+        let mut rng = AesRng::new();
+
+        // Build circuit
+        let circ = {
+            let mut b = CircuitBuilder::new();
+            let x_vec = b.garbler_inputs(&[x8; D*D]); 
+            let xx = b.photon_288(&x_vec).unwrap();
+            let z = b.photon_custom_inv(&xx, D, ics, Z, false).unwrap();
+            b.outputs(&z).unwrap();
+            b.finish()
+        };
+
+        // Evaluate with test vector (see test photon80_du)
+        let garbler_input = (0..D*D).map(|_| (rng.gen::<u8>()) as u16).collect_vec();
+        let res = circ.eval_plain(&garbler_input, &[]).unwrap();
         assert_eq!(res,garbler_input);
     }
 
@@ -817,10 +924,65 @@ mod photon_test {
     }
 
     #[test]
+    fn photon144() {
+        fn fancy_photon144<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
+            let z = b.photon_144(x).unwrap();
+            b.outputs(&z).unwrap()
+        }
+
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: 19 };
+            streaming_test_GF(
+                move |b, x| fancy_photon144(b, x),
+                move |b, x| fancy_photon144(b, x),
+                move |b, x| fancy_photon144(b, x),
+                &q,
+                6
+            );
+        }
+    }
+
+    #[test]
+    fn photon196() {
+        fn fancy_photon196<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
+            let z = b.photon_196(x).unwrap();
+            b.outputs(&z).unwrap()
+        }
+
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: 19 };
+            streaming_test_GF(
+                move |b, x| fancy_photon196(b, x),
+                move |b, x| fancy_photon196(b, x),
+                move |b, x| fancy_photon196(b, x),
+                &q,
+                7
+            );
+        }
+    }
+
+    #[test]
+    fn photon256() {
+        fn fancy_photon256<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
+            let z = b.photon_256(x).unwrap();
+            b.outputs(&z).unwrap()
+        }
+
+        for _ in 0..16 {
+            let q = Modulus::GF4 { p: 19 };
+            streaming_test_GF(
+                move |b, x| fancy_photon256(b, x),
+                move |b, x| fancy_photon256(b, x),
+                move |b, x| fancy_photon256(b, x),
+                &q,
+                8
+            );
+        }
+    }
+
+    #[test]
     fn photon288() {
         fn fancy_photon288<F: Fancy>(b: &mut F, x: &Vec<F::Item>) -> Option<Vec<u16>> {
-            // let Z: &[u16] = &[1, 2, 9, 9, 2];
-            // let ics = &[0, 1, 3, 6, 4];
             let z = b.photon_288(x).unwrap();
             b.outputs(&z).unwrap()
         }
@@ -840,7 +1002,7 @@ mod photon_test {
 /// ------------ mod.rs tests ------------------
 
     #[test]
-    fn test_photon80() {
+    fn test_photon100() {
         let mut rng = rand::thread_rng();
         let p = Modulus::GF4 { p: 19 };
         let d = 5;
@@ -866,7 +1028,7 @@ mod photon_test {
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
             let gb_o = gb.photon_100(&xs).unwrap();
-            gb.outputs(&gb_o);
+            gb.outputs(&gb_o).unwrap();
         });
 
         let rng = AesRng::new();
@@ -880,16 +1042,50 @@ mod photon_test {
     }
 
     #[test]
-    fn test_photon192() {
+    fn test_photon144() {
+        let mut rng = rand::thread_rng();
+        let p = Modulus::GF4 { p: 19 };
+        let d = 6;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
+
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
+        let target_enc = dummy.photon_144(&dummy_input).unwrap();
+        let target = dummy.outputs(&target_enc).unwrap().unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
+            let gb_o = gb.photon_144(&xs).unwrap();
+            gb.outputs(&gb_o).unwrap();
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_many(&vec![p; d*d]).unwrap();
+        let xs_res = ev.photon_144(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
+    }
+
+    #[test]
+    fn test_photon196() {
         let mut rng = rand::thread_rng();
         let p = Modulus::GF4 { p: 19 };
         let d = 7;
         let n = d*d;
         let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
         println!("inp: {:?}", input);
-
-        // let ics = [0, 1, 2, 5, 3, 6, 4];
-        // let Z = [1, 4, 6, 1, 1, 6, 4];
 
         // Run dummy version.
         let mut dummy = Dummy::new();
@@ -906,7 +1102,7 @@ mod photon_test {
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
             let gb_o = gb.photon_196(&xs).unwrap();
-            gb.outputs(&gb_o);
+            gb.outputs(&gb_o).unwrap();
         });
 
         let rng = AesRng::new();
@@ -922,14 +1118,48 @@ mod photon_test {
     #[test]
     fn test_photon256() {
         let mut rng = rand::thread_rng();
+        let p = Modulus::GF4 { p: 19 };
+        let d = 8;
+        let n = d*d;
+        let input = (0..n).map(|_| rng.gen_u16() % 16).collect::<Vec<u16>>();
+        println!("inp: {:?}", input);
+
+        // Run dummy version.
+        let mut dummy = Dummy::new();
+        let dummy_input =  dummy.encode_many(&input, &vec![p; d*d]).unwrap();
+        let target_enc = dummy.photon_256(&dummy_input).unwrap();
+        let target = dummy.outputs(&target_enc).unwrap().unwrap();
+        println!("trgt: {:?}", target);
+
+        // Run 2PC version.
+        let (sender, receiver) = unix_channel_pair();
+        std::thread::spawn(move || {
+            let rng = AesRng::new();
+            let mut gb =
+                twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
+            let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
+            let gb_o = gb.photon_256(&xs).unwrap();
+            gb.outputs(&gb_o).unwrap();
+        });
+
+        let rng = AesRng::new();
+        let mut ev =
+            twopac::semihonest::Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
+        let xs = ev.receive_many(&vec![p; d*d]).unwrap();
+        let xs_res = ev.photon_256(&xs).unwrap();
+        let result = ev.outputs(&xs_res).unwrap().unwrap();
+        println!("res: {:?}", result);
+        assert_eq!(target, result);
+    }
+
+    #[test]
+    fn test_photon288() {
+        let mut rng = rand::thread_rng();
         let p = Modulus::GF8 { p: 283 };
         let d = 6;
         let n = d*d;
         let input = (0..n).map(|_| rng.gen_u16() % 256).collect::<Vec<u16>>();
         println!("inp: {:?}", input);
-
-        // let ics = [0, 1, 3, 7, 6, 4];
-        // let Z = [2, 3, 1, 2, 1, 4];
 
         // Run dummy version.
         let mut dummy = Dummy::new();
@@ -946,7 +1176,7 @@ mod photon_test {
                 twopac::semihonest::Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
             let xs = gb.encode_many(&input, &vec![p; d*d]).unwrap();
             let gb_o = gb.photon_288(&xs).unwrap();
-            gb.outputs(&gb_o);
+            gb.outputs(&gb_o).unwrap();
         });
 
         let rng = AesRng::new();
