@@ -10,8 +10,8 @@ use crate::{
     Modulus,
 };
 use itertools::Itertools;
+use crate::primitives::utils::SBOX_PRESENT;
 
-const SBOX_PRE: &[u16] =  &[0xc, 0x5, 0x6, 0xb, 0x9, 0x0, 0xa, 0xd, 0x3, 0xe, 0xf, 0x8, 0x4, 0x7, 0x1, 0x2];
 const SBOX_PRE_INV: &[u16] = &[0x5, 0xe, 0xf, 0x8, 0xc, 0x1, 0x2, 0xd, 0xb, 0x4, 0x6, 0x3, 0x0, 0x7, 0x9, 0xa];
 const SBOX_AES: &[u16] =  &[0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
                             0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -380,25 +380,25 @@ pub trait PhotonGadgets: Fancy {
 impl<F: Fancy> PhotonGadgets for F {
     fn photon_100(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 5);
-        state.PermutePHOTON(self, &[0,1,3,6,4], SBOX_PRE, &[1,2,9,9,2])?;
+        state.PermutePHOTON(self, &[0,1,3,6,4], SBOX_PRESENT, &[1,2,9,9,2])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_144(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 6);
-        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRE, &[1, 2, 8, 5, 8, 2])?;
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 6, 4], SBOX_PRESENT, &[1, 2, 8, 5, 8, 2])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_196(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 7);
-        state.PermutePHOTON(self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRE, &[1, 4, 6, 1, 1, 6, 4])?;
+        state.PermutePHOTON(self, &[0, 1, 2, 5, 3, 6, 4], SBOX_PRESENT, &[1, 4, 6, 1, 1, 6, 4])?;
         Ok(state.output_photon().unwrap())
     }
 
     fn photon_256(&mut self, input: &Vec<Self::Item>) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, 8);
-        state.PermutePHOTON(self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRE, &[2, 4, 2, 11, 2, 8, 5, 6])?;
+        state.PermutePHOTON(self, &[0, 1, 3, 7, 15, 14, 12, 8], SBOX_PRESENT, &[2, 4, 2, 11, 2, 8, 5, 6])?;
         Ok(state.output_photon().unwrap())
     }
 
@@ -410,7 +410,7 @@ impl<F: Fancy> PhotonGadgets for F {
 
     fn photon_custom(&mut self, input: &Vec<Self::Item>, d: usize, ics: &[u16], Zi: &[u16], in_GF4: bool) -> Result<Vec<Self::Item>, Self::Error> {
         let mut state: PhotonState<F> = PhotonState::new(input, d);
-        let sbox = if in_GF4 {SBOX_PRE} else {SBOX_AES};
+        let sbox = if in_GF4 {SBOX_PRESENT} else {SBOX_AES};
         state.PermutePHOTON(self, ics, sbox, Zi)?;
         Ok(state.output_photon().unwrap())
     }

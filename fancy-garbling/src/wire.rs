@@ -115,6 +115,8 @@ impl std::default::Default for Wire {
 }
 
 impl Modulus {
+    pub const X4_X_1: Modulus = Modulus::GF4 {p: 0b10011};
+
     pub fn value(&self) -> u16 {
         match self {
             Modulus::Zq { q } => *q,
@@ -130,6 +132,14 @@ impl Modulus {
             Modulus::GF4 { .. } => 16 ,
             Modulus::GF8 { .. } => 256,
             Modulus::GFk { k, .. } => 2_u16.pow(*k as u32),
+        }
+    }
+
+    /// Returns true if the modulus is GF(2^n) for some n
+    pub fn is_field(&self) -> bool {
+        match self {
+            Modulus::Zq {..} => false,
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => true
         }
     }
 }
