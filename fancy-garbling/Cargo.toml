@@ -39,17 +39,6 @@ crossbeam = "0.8.0"
 name = "gen-deltas"
 required-features = ["serde1"]
 
-[[bin]]
-name = "photon_benches"
-
-[[bin]]
-name = "photon_gb_nonstr"
-required-features = ["serde1"]
-
-[[bin]]
-name = "photon_ev_nonstr"
-required-features = ["serde1"]
-
 [[bench]]
 name = "wire_operations"
 harness = false
