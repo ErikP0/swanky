@@ -34,6 +34,4 @@ pub mod twopac;
 pub mod util;
 mod wire;
 
-mod primitives;
-
-pub use crate::{errors::FancyError, fancy::*, garble::*, wire::*, primitives::*};
+pub use crate::{errors::FancyError, fancy::*, garble::*, wire::*};
