@@ -47,6 +47,11 @@ pub enum Wire {
         /// A list of `mod-q` digits.
         ds: Vec<u16>,
     },
+    /// An element in the field GF(2^k) is represented by the coefficients of the polynomial
+    /// EXAMPLE: x^3 + x + 1 in GF(2^4)
+    ///   ===>   Elt: u16 = (0000...0 1 0 1 1) = 11
+    /// 
+    /// 
     /// Representation of a wire in GF(2^4)
     GF4 {
         /// Irreducible polynomial.
@@ -472,7 +477,6 @@ impl Wire {
                     elts: ref ys, 
                 },
             ) => {
-                // Because we work in F(2^k), this is just a bitwise addition in F2. 
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
                 xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
@@ -491,7 +495,6 @@ impl Wire {
                     elts: ref ys, 
                 },
             ) => {
-                // Because we work in F(2^k), this is just a bitwise addition in F2. 
                 debug_assert_eq!(xk,yk);
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
@@ -543,6 +546,7 @@ impl Wire {
                 ds.iter_mut()
                     .for_each(|d| *d = (*d as u32 * c as u32 % *q as u32) as u16);
             },
+            // Uses the field_mul function to multiply to elements(polynomials)
             Wire::GF4 { p, elts } => {
                 elts.iter_mut().for_each(|d| {
                     *d = util::field_mul(*d, c, (*p).into(), 4) as u16;
@@ -651,6 +655,8 @@ impl Wire {
                     Wire::ModN { q, ds }
                 }
             },
+            // Generate random number and and it with a mask to make it 
+            // a random element in the field.
             Modulus::GF4 { p } => {
                 let elts = (0..32)
                     .map(|_| (rng.gen::<u8>()&(15)) as u16)
