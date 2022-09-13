@@ -534,7 +534,6 @@ mod complex {
 
 #[cfg(test)]
 mod GF4_nonstreaming {
-
     use crate::{
         circuit::{Circuit, CircuitBuilder},
         classic::garble,
@@ -545,18 +544,18 @@ mod GF4_nonstreaming {
 
     // helper
     fn garble_test_helper<F>(f: F)
-    where
-        F: Fn(&Modulus) -> Circuit,
+        where
+            F: Fn(&Modulus) -> Circuit,
     {
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             let mut c = &mut f(&p);
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
                 let mut inps = Vec::new();
                 for _ in 0..c.num_evaluator_inputs() {
-                    let x = (rng.gen::<u8>()&(15)) as u16;
+                    let x = (rng.gen::<u8>() & (15)) as u16;
                     inps.push(x);
                 }
                 // Run the garbled circuit evaluator.
@@ -642,7 +641,7 @@ mod GF4_nonstreaming {
             let mut rng = thread_rng();
             let mut tab = Vec::new();
             for _ in 0..q.size() {
-                tab.push((rng.gen::<u8>()&(15)) as u16);
+                tab.push((rng.gen::<u8>() & (15)) as u16);
             }
             let mut b = CircuitBuilder::new();
             let x = b.evaluator_input(q);
@@ -657,10 +656,10 @@ mod GF4_nonstreaming {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
 
-        let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-        let c = (rng.gen::<u8>()&(15)) as u16;
+        let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+        let c = (rng.gen::<u8>() & (15)) as u16;
 
-        let y = b.constant(c, &p).unwrap();
+        let y = b.constant(c, p).unwrap();
         b.output(&y).unwrap();
 
         let mut circ = b.finish();
@@ -679,11 +678,11 @@ mod GF4_nonstreaming {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
 
-        let p = Modulus::GF4 { p:*vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-        let c = (rng.gen::<u8>()&(15)) as u16;
+        let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+        let c = (rng.gen::<u8>() & (15)) as u16;
 
-        let x = b.evaluator_input(&p);
-        let y = b.constant(c, &p).unwrap();
+        let x = b.evaluator_input(p);
+        let y = b.constant(c, p).unwrap();
         let z = b.add(&x, &y).unwrap();
         b.output(&z).unwrap();
 
@@ -691,7 +690,7 @@ mod GF4_nonstreaming {
         let (en, ev) = garble(&mut circ).unwrap();
 
         for _ in 0..64 {
-            let x = (rng.gen::<u8>()&(15)) as u16;
+            let x = (rng.gen::<u8>() & (15)) as u16;
             let outputs = circ.eval_plain(&[], &[x]).unwrap();
             assert_eq!(outputs[0], x ^ c, "plaintext");
 
@@ -731,7 +730,7 @@ mod GF4_streaming {
         FDU: FnMut(&mut Dummy, &[DummyVal]) -> Option<u16>,
     {
         let mut rng = AesRng::new();
-        let inputs = input_mods.iter().map(|_| (rng.gen::<u8>()&(15)) as u16).collect_vec();
+        let inputs = input_mods.iter().map(|_| (rng.gen::<u8>() & (15)) as u16).collect_vec();
 
         // evaluate f_gb as a dummy
         let mut dummy = Dummy::new();
@@ -760,7 +759,7 @@ mod GF4_streaming {
 
             assert_eq!(result, should_be)
         })
-        .unwrap();
+            .unwrap();
     }
 
     #[test]
@@ -772,12 +771,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
                 move |b, xs| fancy_addition(b, xs),
                 move |b, xs| fancy_addition(b, xs),
                 move |b, xs| fancy_addition(b, xs),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }
@@ -791,12 +790,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
                 move |b, xs| fancy_subtraction(b, xs),
                 move |b, xs| fancy_subtraction(b, xs),
                 move |b, xs| fancy_subtraction(b, xs),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }
@@ -810,12 +809,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
                 move |b, xs| fancy_cmul(b, xs),
                 move |b, xs| fancy_cmul(b, xs),
                 move |b, xs| fancy_cmul(b, xs),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -830,12 +829,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
                 move |b, xs| fancy_projection(b, xs, &q),
                 move |b, xs| fancy_projection(b, xs, &q),
                 move |b, xs| fancy_projection(b, xs, &q),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -852,12 +851,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
                 move |b, xs| fancy_2xprojection(b, xs, &q),
                 move |b, xs| fancy_2xprojection(b, xs, &q),
                 move |b, xs| fancy_2xprojection(b, xs, &q),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -873,12 +872,12 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
-                move |b, xs| fancy_addproj(b, xs, &q),
-                move |b, xs| fancy_addproj(b, xs, &q),
-                move |b, xs| fancy_addproj(b, xs, &q),
-                &[q, q],
+                move |b, xs| fancy_addproj(b, xs, q),
+                move |b, xs| fancy_addproj(b, xs, q),
+                move |b, xs| fancy_addproj(b, xs, q),
+                &[*q, *q],
             );
         }
     }
@@ -899,21 +898,19 @@ mod GF4_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let q = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF4(
-                move |b, xs| fancy_allop(b, xs, &q),
-                move |b, xs| fancy_allop(b, xs, &q),
-                move |b, xs| fancy_allop(b, xs, &q),
-                &[q, q],
+                move |b, xs| fancy_allop(b, xs, q),
+                move |b, xs| fancy_allop(b, xs, q),
+                move |b, xs| fancy_allop(b, xs, q),
+                &[*q, *q],
             );
         }
     }
-
 }
 
 #[cfg(test)]
 mod GF8_nonstreaming {
-
     use crate::{
         circuit::{Circuit, CircuitBuilder},
         classic::garble,
@@ -922,21 +919,14 @@ mod GF8_nonstreaming {
     };
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
-    const IRRED_GF8: [u16; 30] = [0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-        0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-        0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-        0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-        0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-        0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
-
     // helper
     fn garble_test_helper<F>(f: F)
-    where
-        F: Fn(&Modulus) -> Circuit,
+        where
+            F: Fn(&Modulus) -> Circuit,
     {
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let p = Modulus::GF8 { p:*IRRED_GF8.choose(&mut rng).unwrap() };
+            let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             let mut c = &mut f(&p);
             let (en, ev) = garble(&mut c).unwrap();
             for _ in 0..16 {
@@ -1043,7 +1033,7 @@ mod GF8_nonstreaming {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
 
-        let p = Modulus::GF8 { p:*IRRED_GF8.choose(&mut rng).unwrap() };
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
         let c = (rng.gen::<u8>()) as u16;
 
         let y = b.constant(c, &p).unwrap();
@@ -1065,7 +1055,7 @@ mod GF8_nonstreaming {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
 
-        let p = Modulus::GF8 { p:*IRRED_GF8.choose(&mut rng).unwrap() };
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
         let c = (rng.gen::<u8>()) as u16;
 
         let x = b.evaluator_input(&p);
@@ -1086,7 +1076,6 @@ mod GF8_nonstreaming {
             assert_eq!(Y[0], x ^ c, "garbled");
         }
     }
-
 }
 
 
@@ -1104,13 +1093,6 @@ mod GF8_streaming {
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};
     use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
-
-    const IRRED_GF8: [u16; 30] = [0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-        0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-        0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-        0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-        0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-        0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
 
     // helper - checks that Streaming evaluation of a fancy function equals Dummy
     // evaluation of the same function
@@ -1131,7 +1113,6 @@ mod GF8_streaming {
         let mut dummy = Dummy::new();
         let dinps = dummy.encode_many(&inputs, input_mods).unwrap();
         let should_be = f_du(&mut dummy, &dinps).unwrap();
-        println!("inp: {} -> {}", inputs[0], should_be);
 
         let (sender, receiver) = unix_channel_pair();
 
@@ -1154,7 +1135,7 @@ mod GF8_streaming {
 
             assert_eq!(result, should_be)
         })
-        .unwrap();
+            .unwrap();
     }
 
     #[test]
@@ -1166,12 +1147,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_addition(b, xs),
                 move |b, xs| fancy_addition(b, xs),
                 move |b, xs| fancy_addition(b, xs),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }
@@ -1185,12 +1166,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_subtraction(b, xs),
                 move |b, xs| fancy_subtraction(b, xs),
                 move |b, xs| fancy_subtraction(b, xs),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }
@@ -1204,12 +1185,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_cmul(b, xs),
                 move |b, xs| fancy_cmul(b, xs),
                 move |b, xs| fancy_cmul(b, xs),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -1224,12 +1205,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_projection(b, xs, &q),
                 move |b, xs| fancy_projection(b, xs, &q),
                 move |b, xs| fancy_projection(b, xs, &q),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -1246,12 +1227,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_2xprojection(b, xs, &q),
                 move |b, xs| fancy_2xprojection(b, xs, &q),
                 move |b, xs| fancy_2xprojection(b, xs, &q),
-                &[q],
+                &[*q],
             );
         }
     }
@@ -1267,12 +1248,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_addproj(b, xs, &q),
                 move |b, xs| fancy_addproj(b, xs, &q),
                 move |b, xs| fancy_addproj(b, xs, &q),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }
@@ -1293,12 +1274,12 @@ mod GF8_streaming {
 
         let mut rng = thread_rng();
         for _ in 0..16 {
-            let q = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let q = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             streaming_test_GF8(
                 move |b, xs| fancy_allop(b, xs, &q),
                 move |b, xs| fancy_allop(b, xs, &q),
                 move |b, xs| fancy_allop(b, xs, &q),
-                &[q, q],
+                &[*q, *q],
             );
         }
     }

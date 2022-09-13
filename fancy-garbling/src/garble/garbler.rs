@@ -184,11 +184,11 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
                     return self.mul(B, A);
                 }
 
-                // let q = A.modulus();
-                // let qb = B.modulus();
                 let gate_num = self.current_gate();
 
-                let D = self.delta(&A.modulus());
+                let modA = A.modulus();
+
+                let D = self.delta(&modA);
                 let Db = self.delta(&B.modulus());
 
                 let r;
@@ -230,14 +230,14 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
                 let alpha = (q - A.color()) % q; // alpha = -A.color
                 let X = A
                     .plus(&D.cmul(alpha))
-                    .hashback(g, q)
+                    .hashback(g, &modA)
                     .plus_mov(&D.cmul(alpha * r % q));
 
                 // Y = H(B + bD) + (b + r)A such that b + B.color == 0
                 let beta = (qb - B.color()) % qb;
                 let Y = B
                     .plus(&Db.cmul(beta))
-                    .hashback(g, q)
+                    .hashback(g, &modA)
                     .plus_mov(&A.cmul((beta + r) % q));
 
                 let mut precomp = Vec::with_capacity(q as usize);
@@ -297,7 +297,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
             //     // TODO
             // }
             _ => {
-                Err(GarblerError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))))
+                Err(GarblerError::FancyError(FancyError::InvalidArg(format!("Multiplication of {:?} and {:?} is not supported", A.modulus(), B.modulus()))))
             }
         }
     }
@@ -315,179 +315,82 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
         let g = tweak(self.current_gate());
         let C: Wire;
 
-        if let (Modulus::Zq { q: q_i}, Modulus::Zq { q: q_o }) = (mod_in, *mod_out) {
-            // (q_in, q_out) = (q_i, q_o);
-            Din = self.delta(&Modulus::Zq { q: q_i});
-            Dout = self.delta(&Modulus::Zq { q: q_o });
+        Din = self.delta(&mod_in);
+        Dout = self.delta(&mod_out);
 
-            // output zero-wire
-            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
-            C = A
-                .plus(&Din.cmul((q_i - tao) % q_i))          // rotate negative -tao over mod q_in
-                .hashback(g, q_o)
-                .plus_mov(&Dout.cmul((q_o - tt[((q_i - tao) % q_i) as usize]) % q_o));
+        // output zero-wire
+        // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+        let neg_tao= match mod_in {
+            Modulus::Zq {q: q_i} =>  (q_i - tao) % q_i, // rotate negative -tao over mod q_in
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => tao, // in GF(2^k): -tao = tao
+        };
+        let neg_phi_neg_tao = match mod_out {
+            Modulus::Zq {q: q_o} =>  (q_o - tt[neg_tao as usize]) % q_o,
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => tt[(tao) as usize],
+        };
+        C = A
+            .plus(&Din.cmul(neg_tao))
+            .hashback(g, mod_out)
+            .plus_mov(&Dout.cmul(neg_phi_neg_tao));
 
-            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
-            let C_precomputed = {
+        // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+        // TODO: this might compute labels that are not used in the truth table at all!
+        let C_precomputed = match mod_out {
+            Modulus::Zq { q: q_i } => {
                 let mut C_ = C.clone();
-                (0..q_o)
-                    .map(|x| {
-                        if x > 0 {
-                            C_.plus_eq(&Dout);
-                        }
-                        C_.as_block()
-                    })
-                    .collect::<Vec<Block>>()
-            };
-
-            let mut A_ = A.clone();
-            for x in 0..q_i {
-                if x > 0 {
-                    A_.plus_eq(&Din); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
-                }
-
-                let ix = (tao as usize + x as usize) % q_i as usize;
-                if ix == 0 {
-                    continue;
-                }
-
-                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
-                gate[ix - 1] = ct;
+                (0..*q_i).map(|x| {
+                    if x > 0 {
+                        C_.plus_eq(&Dout);
+                    }
+                    C_.as_block()
+                }).collect::<Vec<Block>>()
             }
-        }
-        else if let (Modulus::GF4 { p: p_in}, Modulus::GF4 { p: p_out }) = (mod_in, *mod_out) {
-            // (q_in, q_out) = (p_in as u16, p_out as u16);
-            Din = self.delta(&Modulus::GF4 { p: p_in});
-            Dout = self.delta(&Modulus::GF4 { p: p_out });
-
-            // output zero-wire
-            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
-            C = A
-                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao 
-                .hashback(g, p_out as u16)
-                .plus_mov(&Dout.cmul(tt[(tao) as usize])); 
-
-            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
-            let mut C_ = C.clone();
-            let C_precomputed = {
-                (0..16)
-                    .map(|x| {
+            Modulus::GF4 { .. } | Modulus::GF8 { .. } | Modulus::GFk { .. } => {
+                let mut C_ = C.clone();
+                (0..mod_out.size()).map(|x| {
+                    if x > 0 {
                         C_ = C.clone();
-                        if x > 0 {
-                            C_.plus_eq(&Dout.cmul(x));
-                        }
-                        C_.as_block()
-                    })
-                    .collect::<Vec<Block>>()
-            };
+                        C_.plus_eq(&Dout.cmul(x));
+                    }
+                    C_.as_block()
+                }).collect::<Vec<Block>>()
+            }
+        };
 
-            let mut A_ = A.clone();
-            for x in 0..16 {
-                if x > 0 {
-                    A_ = A.clone();
-                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+        let mut A_ = A.clone();
+        match mod_in {
+            Modulus::Zq {q: q_i} => {
+                for x in 0..q_i {
+                    if x > 0 {
+                        A_.plus_eq(&Din); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                    }
+
+                    let ix = (tao as usize + x as usize) % q_i as usize;
+                    if ix == 0 {
+                        continue;
+                    }
+
+                    let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                    gate[ix - 1] = ct;
                 }
+            },
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => {
+                for x in 0..mod_in.size() {
+                    if x > 0 {
+                        A_ = A.clone();
+                        A_.plus_eq(&Din.cmul(x));
+                    }
 
-                let ix = (tao ^ x) as usize;
-                if ix == 0 {
-                    continue;
+                    let ix = (tao ^ x) as usize;
+                    if ix == 0 {
+                        continue;
+                    }
+
+                    let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
+                    gate[ix - 1] = ct;
                 }
-
-                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
-                gate[ix - 1] = ct;
             }
         }
-        else if let (Modulus::GF8 { p: p_in}, Modulus::GF8 { p: p_out }) = (mod_in, *mod_out) {
-            // (q_in, q_out) = (p_in as u16, p_out as u16);
-            Din = self.delta(&Modulus::GF8 { p: p_in});
-            Dout = self.delta(&Modulus::GF8 { p: p_out });
-
-            // output zero-wire
-            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
-            C = A
-                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao 
-                .hashback(g, p_out as u16)
-                .plus_mov(&Dout.cmul(tt[(tao) as usize])); 
-
-            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
-            let mut C_ = C.clone();
-            let C_precomputed = {
-                (0..256)
-                    .map(|x| {
-                        C_ = C.clone();
-                        if x > 0 {
-                            C_.plus_eq(&Dout.cmul(x));
-                        }
-                        C_.as_block()
-                    })
-                    .collect::<Vec<Block>>()
-            };
-
-            let mut A_ = A.clone();
-            for x in 0..256 {
-                if x > 0 {
-                    A_ = A.clone();
-                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
-                }
-
-                let ix = (tao ^ x) as usize;
-                if ix == 0 {
-                    continue;
-                }
-
-                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
-                gate[ix - 1] = ct;
-            }
-        }
-        else if let (Modulus::GFk {k: k_in, p: p_in}, Modulus::GFk { k: k_out ,p: p_out }) = (mod_in, *mod_out) {
-            if k_in != k_out {
-                return Err(GarblerError::FancyError(FancyError::UnequalK));
-            }
-            // (q_in, q_out) = (p_in as u16, p_out as u16);
-            Din = self.delta(&Modulus::GFk { k: k_in, p: p_in});
-            Dout = self.delta(&Modulus::GFk {  k: k_out, p: p_out });
-
-            // output zero-wire
-            // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
-            C = A
-                .plus(&Din.cmul(tao))          // in GF(2^k): -tao = tao ?
-                .hashback(g, p_out as u16)
-                .plus_mov(&Dout.cmul(tt[(tao) as usize])); // again negating does nothing ? + reduce wrt p_out
-
-            // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
-            let mut C_ = C.clone();
-            let C_precomputed = {
-                (0..(128 / k_in) as u16)
-                    .map(|x| {
-                        C_ = C.clone();
-                        if x > 0 {
-                            C_.plus_eq(&Dout.cmul(x));
-                        }
-                        C_.as_block()
-                    })
-                    .collect::<Vec<Block>>()
-            };
-
-            let mut A_ = A.clone();
-            for x in 0..(128 / k_out) as u16 {
-                if x > 0 {
-                    A_ = A.clone();
-                    A_.plus_eq(&Din.cmul(x)); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
-                }
-
-                let ix = (tao ^ x) as usize;
-                if ix == 0 {
-                    continue;
-                }
-
-                let ct = A_.hash(g) ^ C_precomputed[tt[x as usize] as usize];
-                gate[ix - 1] = ct;
-            }
-        }
-        else {
-            return Err(GarblerError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
-        }                
-        
 
         for block in gate.iter() {
             self.channel.write_block(block)?;
@@ -497,12 +400,7 @@ impl<C: AbstractChannel, RNG: RngCore + CryptoRng> Fancy for Garbler<C, RNG> {
 
     fn output(&mut self, X: &Wire) -> Result<Option<u16>, GarblerError> {
         let modulus = X.modulus();
-        let q = match X.modulus() {
-            Modulus::Zq { q } => q,
-            Modulus::GF4 { .. } => 16,
-            Modulus::GF8 { .. } => 256,
-            Modulus::GFk {k, .. } => 2_u16.pow(k.into()),
-        };
+        let q = modulus.size();
         let i = self.current_output();
         let D = self.delta(&modulus);
 

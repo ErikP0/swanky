@@ -106,13 +106,7 @@ impl<
 
     fn receive_many(&mut self, ms: &[Modulus]) -> Result<Vec<Wire>, TwopacError> {
         let n = ms.len();
-        let lens = ms.iter().map(|q| { match q {
-                                                    Modulus::Zq { q: qq } => f32::from(*qq).log(2.0).ceil() as usize,
-                                                    Modulus::GF4 { .. } => 4, 
-                                                    Modulus::GF8 { .. } => 8,
-                                                    Modulus::GFk { k, .. } => (*k).into()}
-                                                }
-                                );
+        let lens = ms.iter().map(|q| q.bit_length());
         let mut wires = Vec::with_capacity(n);
         let mut inputs = Vec::with_capacity(lens.sum());
 

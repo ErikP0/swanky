@@ -86,28 +86,28 @@ impl Circuit {
         for i in 0..n1 {
             circ.gates.push(Gate::GarblerInput { id: i });
             circ.garbler_input_refs
-                .push(CircuitRef { ix: i, modulus: Modulus::Zq { q: (2) } });
+                .push(CircuitRef { ix: i, modulus: Modulus::Zq { q: 2 } });
         }
         // Process evaluator inputs.
         for i in 0..n2 {
             circ.gates.push(Gate::EvaluatorInput { id: i });
             circ.evaluator_input_refs.push(CircuitRef {
                 ix: n1 + i,
-                modulus: Modulus::Zq { q: (2) },
+                modulus: Modulus::Zq { q: 2 },
             });
         }
         // Create a constant wire for negations.
         circ.gates.push(Gate::Constant { val: 1 });
         let oneref = CircuitRef {
             ix: n1 + n2,
-            modulus: Modulus::Zq { q: (2) },
+            modulus: Modulus::Zq { q: 2 },
         };
         circ.const_refs.push(oneref);
         // Process outputs.
         for i in 0..n3 {
             circ.output_refs.push(CircuitRef {
                 ix: nwires - n3 + i,
-                modulus: Modulus::Zq { q: (2) },
+                modulus: Modulus::Zq { q: 2 },
             });
         }
         for line in reader.lines() {
@@ -119,7 +119,7 @@ impl Circuit {
                     let out = cap2int(&cap, 2)?;
                     let yref = CircuitRef {
                         ix: yref,
-                        modulus: Modulus::Zq { q: (2) },
+                        modulus: Modulus::Zq { q: 2 },
                     };
                     circ.gates.push(Gate::Sub {
                         xref: oneref,
@@ -135,11 +135,11 @@ impl Circuit {
                     let typ = cap2typ(&cap, 4)?;
                     let xref = CircuitRef {
                         ix: xref,
-                        modulus: Modulus::Zq { q: (2) },
+                        modulus: Modulus::Zq { q: 2 },
                     };
                     let yref = CircuitRef {
                         ix: yref,
-                        modulus: Modulus::Zq { q: (2) },
+                        modulus: Modulus::Zq { q: 2 },
                     };
                     let gate = match typ {
                         GateType::AndGate => {
@@ -166,7 +166,7 @@ impl Circuit {
                 }
             }
         }
-        circ.gate_moduli = vec![Modulus::Zq { q: (2) }; circ.gates.len()];
+        circ.gate_moduli = vec![Modulus::Zq { q: 2 }; circ.gates.len()];
         Ok(circ)
     }
 }

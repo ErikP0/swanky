@@ -199,17 +199,18 @@ pub fn from_poly_p_u128(elts: &Vec<u16>, p: u16, k: u8) -> u128 {
 /// Field multiplication (a*b) in GF(2^k) using the Russian peasant multiplication algorithm.
 /// https://en.wikipedia.org/wiki/Ancient_Egyptian_multiplication#Russian_peasant_multiplication
 pub fn field_mul(a: u16, b: u16, p: u16, k: u8) -> u8 {
-    let mut x = a; let mut ret = 0;
-	
-	for i in 0..k {
-		if ((b>>i)&1) != 0 {ret ^= x};
+    let mut x = a;
+    let mut ret = 0;
 
-		if((x>>(k-1))&1) != 0 {
-			x <<= 1;
-			x ^= p;
-		} else {x <<= 1}
-	}
-	return ret as u8;
+    for i in 0..k {
+        if ((b >> i) & 1) != 0 { ret ^= x };
+
+        if ((x >> (k - 1)) & 1) != 0 {
+            x <<= 1;
+            x ^= p;
+        } else { x <<= 1 }
+    }
+    return ret as u8;
 }
 
 
@@ -235,8 +236,7 @@ pub fn u128_to_bits(x: u128, n: usize) -> Vec<u16> {
     for _ in 0..n {
         let b = y & 1;
         bits.push(b as u16);
-        y -= b;
-        y /= 2;
+        y >>= 1;
     }
     bits
 }
@@ -246,7 +246,7 @@ pub fn u128_from_bits(bs: &[u16]) -> u128 {
     let mut x = 0;
     for &b in bs.iter().skip(1).rev() {
         x += b as u128;
-        x *= 2;
+        x <<= 1;
     }
     x += bs[0] as u128;
     x
@@ -490,10 +490,6 @@ pub trait RngExt: rand::Rng + Sized {
     fn gen_modulus(&mut self) -> u16 {
         2 + (self.gen::<u16>() % 111)
     }
-    /// Randomly generate a (supported) polynomial GF4
-    fn gen_poly(&mut self) -> u8 {
-        2 + (self.gen::<u8>() % 111)
-    }
     /// Randomly generate a valid composite modulus.
     fn gen_usable_composite_modulus(&mut self) -> u128 {
         product(&self.gen_usable_factors())
@@ -594,10 +590,6 @@ mod tests {
         assert_eq!(array.len(), 16);
         assert!(array.iter().all(|el| *el == *el as u8));
     }
-
-   
-
-
 }
 
 #[cfg(all(feature = "nightly", test))]

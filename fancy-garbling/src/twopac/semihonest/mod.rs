@@ -29,10 +29,7 @@ mod tests {
     use scuttlebutt::{unix_channel_pair, AesRng, UnixChannel};
 
     fn addition<F: Fancy>(f: &mut F, a: &F::Item, b: &F::Item) -> Result<Option<u16>, F::Error> {
-        // let x3_x_1 = 11;
-        // let a_ = f.cmul(a, x3_x_1).unwrap();
-        let a_ = a;
-        let c = f.add(&a_, &b)?;
+        let c = f.add(&a, &b)?;
         f.output(&c)
     }
 
@@ -46,16 +43,16 @@ mod tests {
                     let mut gb =
                         Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng)
                             .unwrap();
-                    let x = gb.encode(a, &Modulus::Zq { q: (3) }).unwrap();
-                    let ys = gb.receive_many(&[Modulus::Zq { q: (3) }]).unwrap();
+                    let x = gb.encode(a, &Modulus::Zq { q: 3 }).unwrap();
+                    let ys = gb.receive_many(&[Modulus::Zq { q: 3 }]).unwrap();
                     addition(&mut gb, &x, &ys[0]).unwrap();
                 });
                 let rng = AesRng::new();
                 let mut ev =
                     Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng)
                         .unwrap();
-                let x = ev.receive(&Modulus::Zq { q: (3) }).unwrap();
-                let ys = ev.encode_many(&[b], &[Modulus::Zq { q: (3) }]).unwrap();
+                let x = ev.receive(&Modulus::Zq { q: 3 }).unwrap();
+                let ys = ev.encode_many(&[b], &[Modulus::Zq { q: 3 }]).unwrap();
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
                 assert_eq!((a + b) % 3, output);
             }
@@ -65,25 +62,25 @@ mod tests {
     #[test]
     fn test_addition_circuit_GF4() {
         for a in 0..16 {
-            for b in 0..16{
+            for b in 0..16 {
                 let (sender, receiver) = unix_channel_pair();
                 std::thread::spawn(move || {
                     let rng = AesRng::new();
                     let mut gb =
                         Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng)
                             .unwrap();
-                    let x = gb.encode(a, &Modulus::GF4 { p: 19 }).unwrap();
-                    let ys = gb.receive_many(&[Modulus::GF4 { p: 19 }]).unwrap();
+                    let x = gb.encode(a, &Modulus::X4_X_1).unwrap();
+                    let ys = gb.receive_many(&[Modulus::X4_X_1]).unwrap();
                     addition(&mut gb, &x, &ys[0]).unwrap();
                 });
                 let rng = AesRng::new();
                 let mut ev =
                     Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng)
                         .unwrap();
-                let x = ev.receive(&Modulus::GF4 { p: 19 }).unwrap();
-                let ys = ev.encode_many(&[b], &[Modulus::GF4 { p: 19 }]).unwrap();
+                let x = ev.receive(&Modulus::X4_X_1).unwrap();
+                let ys = ev.encode_many(&[b], &[Modulus::X4_X_1]).unwrap();
                 let output = addition(&mut ev, &x, &ys[0]).unwrap().unwrap();
-                assert_eq!( a ^ b, output);
+                assert_eq!(a ^ b, output);
             }
         }
     }
@@ -146,15 +143,15 @@ mod tests {
             let rng = AesRng::new();
             let mut gb =
                 Garbler::<UnixChannel, AesRng, ChouOrlandiSender>::new(sender, rng).unwrap();
-            let xs = gb.encode_many(&vec![0_u16; 128], &vec![Modulus::Zq { q: (2) }; 128]).unwrap();
-            let ys = gb.receive_many(&vec![Modulus::Zq { q: (2) }; 128]).unwrap();
+            let xs = gb.encode_many(&vec![0_u16; 128], &vec![Modulus::Zq { q: 2 }; 128]).unwrap();
+            let ys = gb.receive_many(&vec![Modulus::Zq { q: 2 }; 128]).unwrap();
             circ_.eval(&mut gb, &xs, &ys).unwrap();
         });
         let rng = AesRng::new();
         let mut ev =
             Evaluator::<UnixChannel, AesRng, ChouOrlandiReceiver>::new(receiver, rng).unwrap();
-        let xs = ev.receive_many(&vec![Modulus::Zq { q: (2) }; 128]).unwrap();
-        let ys = ev.encode_many(&vec![0_u16; 128], &vec![Modulus::Zq { q: (2) }; 128]).unwrap();
+        let xs = ev.receive_many(&vec![Modulus::Zq { q: 2 }; 128]).unwrap();
+        let ys = ev.encode_many(&vec![0_u16; 128], &vec![Modulus::Zq { q: 2 }; 128]).unwrap();
         circ.eval(&mut ev, &xs, &ys).unwrap();
         handle.join().unwrap();
     }

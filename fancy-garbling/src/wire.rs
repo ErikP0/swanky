@@ -103,10 +103,10 @@ pub enum Modulus {
 impl std::fmt::Display for Modulus {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match *self {
-            Modulus::Zq { q } => write!(fmt, "modulus q = {} (Zq)", q),
-            Modulus::GF4 { p } => write!(fmt, "irreducible polynomial p = {} (GF4)", p), 
-            Modulus::GF8 { p } => write!(fmt, "irreducible polynomial p = {} (GF8)",p),
-            Modulus::GFk { k, p } => write!(fmt, "irreducible polynomial p = {} (GF{})",p,k),
+            Modulus::Zq { q } => write!(fmt, "Zq(q={})", q),
+            Modulus::GF4 { p } => write!(fmt, "GF4(p={})", p),
+            Modulus::GF8 { p } => write!(fmt, "GF8(p={})",p),
+            Modulus::GFk { k, p } => write!(fmt, "GF2^{}(p={})",k,p),
         }
     }
 }
@@ -120,7 +120,29 @@ impl std::default::Default for Wire {
 }
 
 impl Modulus {
+    /// Irreducible polynomial X^4 + X + 1 in GF(2^4)
     pub const X4_X_1: Modulus = Modulus::GF4 {p: 0b10011};
+    /// Irreducible polynomial X^4 + X^2 + 1 in GF(2^4)
+    pub const X4_X2_1: Modulus = Modulus::GF4 {p: 0b10101};
+    /// Irreducible polynomial X^4 + X^3 + X^2 + X + 1 in GF(2^4)
+    pub const X4_X3_X2_X_1: Modulus = Modulus::GF4 {p: 0b11111};
+
+    /// All moduli of GF(2^4)
+    pub const GF4_MODULI: [Modulus; 3] = [Self::X4_X_1, Self::X4_X2_1, Self::X4_X3_X2_X_1];
+
+    /// All moduli of GF(2^8)
+    pub const GF8_MODULI: [Modulus; 30] = [
+        Modulus::GF8 { p: 0b100011011 }, Modulus::GF8 { p: 0b100011101 }, Modulus::GF8 { p: 0b100101011 },
+        Modulus::GF8 { p: 0b100101101 }, Modulus::GF8 { p: 0b100111001 }, Modulus::GF8 { p: 0b100111111 },
+        Modulus::GF8 { p: 0b101001101 }, Modulus::GF8 { p: 0b101011111 }, Modulus::GF8 { p: 0b101100011 },
+        Modulus::GF8 { p: 0b101100101 }, Modulus::GF8 { p: 0b101101001 }, Modulus::GF8 { p: 0b101110001 },
+        Modulus::GF8 { p: 0b101110111 }, Modulus::GF8 { p: 0b101111011 }, Modulus::GF8 { p: 0b110000111 },
+        Modulus::GF8 { p: 0b110001011 }, Modulus::GF8 { p: 0b110001101 }, Modulus::GF8 { p: 0b110011111 },
+        Modulus::GF8 { p: 0b110100011 }, Modulus::GF8 { p: 0b110101001 }, Modulus::GF8 { p: 0b110110001 },
+        Modulus::GF8 { p: 0b110111101 }, Modulus::GF8 { p: 0b111000011 }, Modulus::GF8 { p: 0b111001111 },
+        Modulus::GF8 { p: 0b111010111 }, Modulus::GF8 { p: 0b111011101 }, Modulus::GF8 { p: 0b111100111 },
+        Modulus::GF8 { p: 0b111110011 }, Modulus::GF8 { p: 0b111110101 }, Modulus::GF8 { p: 0b111111001 },
+    ];
 
     pub fn value(&self) -> u16 {
         match self {
@@ -145,6 +167,16 @@ impl Modulus {
         match self {
             Modulus::Zq {..} => false,
             Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => true
+        }
+    }
+
+    /// returns the number of bits required to represent an element mod self
+    pub fn bit_length(&self) -> usize {
+        match self {
+            Modulus::Zq{ q } => f32::from(*q).log(2.0).ceil() as usize,
+            Modulus::GF4 { .. } => 4,
+            Modulus::GF8 { .. } => 8,
+            Modulus::GFk { k, .. } => (*k).into(),
         }
     }
 }
@@ -290,13 +322,13 @@ impl Wire {
     }
 
     fn from_block_GFk(inp: Block, p: u16, k: u8) -> Self {
-        let inp = u128::from(inp);
-        let mut _inp = inp;
+        let mut inp = u128::from(inp);
         let mut elts: Vec<u16> = Vec::new();
         let length = 128 / k;
+        let mask = ((1 << k)-1) as u16;
         for _ in 0..length {
-            elts.push((_inp & (2_u16.pow(k as u32) - 1) as u128) as u16);
-            _inp >>= k;
+            elts.push((inp & mask as u128) as u16);
+            inp >>= k;
         }
 
         match k {
@@ -451,51 +483,26 @@ impl Wire {
                 });
             }
             (
-                Wire::GF4 { 
-                    p: ref xpoly, 
-                    elts: ref mut xs,
-                },
-                Wire::GF4 { 
-                    p: ref ypoly, 
-                    elts: ref ys, 
-                },
+                Wire::GF4 { p: ref xpoly, elts: ref mut xs },
+                Wire::GF4 { p: ref ypoly, elts: ref ys},
             ) => {
+                // Because we work in F(2^k), this is just a bitwise addition in F2.
+                debug_assert_eq!(xpoly, ypoly);
+                debug_assert_eq!(xs.len(), ys.len());
+                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
+                    *x ^= y;
+                });
+            },
+            (
+                Wire::GF8 { p: ref xpoly, elts: ref mut xs },
+                Wire::GF8 { p: ref ypoly, elts: ref ys},
+            )
+            | (
+                Wire::GFk { p: ref xpoly, elts: ref mut xs, .. },
+                Wire::GFk { p: ref ypoly, elts: ref ys, .. },
+            )
+            => {
                 // Because we work in F(2^k), this is just a bitwise addition in F2. 
-                debug_assert_eq!(xpoly, ypoly);
-                debug_assert_eq!(xs.len(), ys.len());                
-                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
-                    *x ^= y;
-                });
-            } 
-            (
-                Wire::GF8 { 
-                    p: ref xpoly, 
-                    elts: ref mut xs,
-                },
-                Wire::GF8 { 
-                    p: ref ypoly, 
-                    elts: ref ys, 
-                },
-            ) => {
-                debug_assert_eq!(xpoly, ypoly);
-                debug_assert_eq!(xs.len(), ys.len());                
-                xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
-                    *x ^= y;
-                });
-            }
-            (
-                Wire::GFk {
-                    k: ref xk, 
-                    p: ref xpoly, 
-                    elts: ref mut xs,
-                },
-                Wire::GFk { 
-                    k: ref yk,
-                    p: ref ypoly, 
-                    elts: ref ys, 
-                },
-            ) => {
-                debug_assert_eq!(xk,yk);
                 debug_assert_eq!(xpoly, ypoly);
                 debug_assert_eq!(xs.len(), ys.len());                
                 xs.iter_mut().zip(ys.iter()).for_each(|(x,&y)| {
@@ -518,7 +525,6 @@ impl Wire {
     pub fn cmul(&self, c: u16) -> Self {
         self.clone().cmul_mov(c)
     }
-    
     /// Multiply each digit by a constant `c mod q`.
     pub fn cmul_eq(&mut self, c: u16) -> &mut Wire {
         match self {
@@ -596,13 +602,7 @@ impl Wire {
                     }
                 });
             }
-            Wire::GF4 { .. } => {
-                // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
-            }
-            Wire::GF8 { .. } => {
-                // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
-            }
-            Wire::GFk { .. } => {
+            Wire::GF4 { .. } | Wire::GF8 { .. } | Wire::GFk { .. } => {
                 // Do nothing. Additive inverse is a no-op for coefficients with mod 2.
             }
         }
@@ -689,37 +689,23 @@ impl Wire {
     /// Compute the hash of this wire, converting the result back to a wire.
     ///
     /// Uses fixed-key AES.
-    pub fn hashback(&self, tweak: Block, modulus: u16) -> Wire {
+    pub fn hashback(&self, tweak: Block, modulus: &Modulus) -> Wire {
         let block = self.hash(tweak);
-        match *self {
-            Wire::GF4 { .. } => {
-                Self::from_block(block, &Modulus::GF4 { p: modulus as u8 })
-            },
-            Wire::GF8 { .. } => {
-                Self::from_block(block, &Modulus::GF8 { p: modulus })
-            },
-            Wire::GFk { k, .. } => {
-                Self::from_block(block, &Modulus::GFk { k, p: modulus })
+        if let Modulus::Zq {q: 3} = modulus {
+            // We have to convert `block` into a valid `Mod3` encoding. We do
+            // this by computing the `Mod3` digits using `_unrank`, and then map
+            // these to a `Mod3` encoding.
+            let mut lsb = 0u64;
+            let mut msb = 0u64;
+            let mut ds = Self::_unrank(u128::from(block), 3);
+            for (i, v) in ds.drain(..64).enumerate() {
+                lsb |= ((v & 1) as u64) << i;
+                msb |= (((v >> 1) & 1u16) as u64) << i;
             }
-            _ => {
-                if modulus == 3 {
-                    // We have to convert `block` into a valid `Mod3` encoding. We do
-                    // this by computing the `Mod3` digits using `_unrank`, and then map
-                    // these to a `Mod3` encoding.
-                    let mut lsb = 0u64;
-                    let mut msb = 0u64;
-                    let mut ds = Self::_unrank(u128::from(block), modulus);
-                    for (i, v) in ds.drain(..64).enumerate() {
-                        lsb |= ((v & 1) as u64) << i;
-                        msb |= (((v >> 1) & 1u16) as u64) << i;
-                    }
-                    debug_assert_eq!(lsb & msb, 0);
-                    Wire::Mod3 { lsb, msb }
-                } else {
-                    Self::from_block(block, &Modulus::Zq { q: modulus })
-                }
-            }
+            debug_assert_eq!(lsb & msb, 0);
+            return Wire::Mod3 { lsb, msb }
         }
+        Self::from_block(block, modulus)
     }
 }
 
@@ -769,11 +755,11 @@ mod tests {
     #[test]
     fn packing_GF4() {
         let ref mut rng = thread_rng();
-        let irred_GF4 = vec!(0b10011, 0b11001, 0b11111);  // all irreducible polynomials for GF(2^4)
-        for p in irred_GF4.into_iter() {  // 0b10011 is X^4 + X + 1
+        // iterate over all irreducible polynomials for GF(2^4)
+        for p in &Modulus::GF4_MODULI {
             for _ in 0..1000 {
-                let w = Wire::rand(rng, &Modulus::GF4{ p });
-                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::GF4{ p }));
+                let w = Wire::rand(rng, p);
+                assert_eq!(w, Wire::from_block(w.as_block(), &p));
             }
         }
     }
@@ -781,16 +767,11 @@ mod tests {
     #[test]
     fn packing_GF8() {
         let ref mut rng = thread_rng();
-        let irred_GF8 = vec!(0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-                                       0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-                                       0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-                                       0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-                                       0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-                                       0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001);  // all irreducible polynomials for GF(2^8)
-        for p in irred_GF8.into_iter() {
+        // all irreducible polynomials for GF(2^8)
+        for p in &Modulus::GF8_MODULI {
             for _ in 0..1000 {
-                let w = Wire::rand(rng, &Modulus::GF8{ p });
-                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::GF8{ p }));
+                let w = Wire::rand(rng, &p);
+                assert_eq!(w, Wire::from_block(w.as_block(), &p));
             }
         }
     }
@@ -799,17 +780,17 @@ mod tests {
     fn packing_GFk() {
         let ref mut rng = thread_rng();
         let irred_GFk = vec!(0b1101, 0b1011,
-                                       0b100101, 0b110111, 0b111011, 
-                                       0b1000011, 0b1101101, 0b1110101,
-                                       0b10000011, 0b10011101, 0b10111111);  // some irreducible polynomials for GF(2^k)
+                             0b100101, 0b110111, 0b111011,
+                             0b1000011, 0b1101101, 0b1110101,
+                             0b10000011, 0b10011101, 0b10111111);  // some irreducible polynomials for GF(2^k)
         let ks = vec!(3, 3,
                       5, 5, 5,
                       6, 6, 6,
                       7, 7, 7);
         for i in 0..irred_GFk.len() {
             for _ in 0..1000 {
-                let w = Wire::rand(rng, &Modulus::GFk{ p: irred_GFk[i], k: ks[i] });
-                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::GFk{ p: irred_GFk[i], k: ks[i] }));
+                let w = Wire::rand(rng, &Modulus::GFk { p: irred_GFk[i], k: ks[i] });
+                assert_eq!(w, Wire::from_block(w.as_block(), &Modulus::GFk { p: irred_GFk[i], k: ks[i] }));
             }
         }
     }
@@ -824,11 +805,11 @@ mod tests {
             let should_be = util::as_base_q_u128(x, q);
             assert_eq!(w.digits(), should_be, "x={} q={}", x, q);
 
-            let irred_GF4 = vec!(0b10011, 0b11001, 0b11111);  // all irreducible polynomials for GF(2^4)
-            for p in irred_GF4.into_iter() {
-                let w = Wire::from_block(Block::from(x), &Modulus::GF4{ p });
+            // all irreducible polynomials for GF(2^4)
+            for p in &Modulus::GF4_MODULI {
+                let w = Wire::from_block(Block::from(x), p);
                 let should_be = util::as_base_q_u128(x, 16);
-                assert_eq!(w.digits(), should_be, "x={} p={}", x, p);
+                assert_eq!(w.digits(), should_be, "x={} p={}", x, p.value());
             }
         }
     }
@@ -839,7 +820,7 @@ mod tests {
         for _ in 0..100 {
             let q = 2 + (rng.gen_u16() % 110);
             let x = Wire::rand(&mut rng, &Modulus::Zq { q });
-            let y = x.hashback(Block::from(1u128), q);
+            let y = x.hashback(Block::from(1u128), &Modulus::Zq { q });
             assert!(x != y);
             match y {
                 Wire::Mod2 { val } => assert!(u128::from(val) > 0),
@@ -854,13 +835,13 @@ mod tests {
     fn hash_GF4() {
         let mut rng = thread_rng();
         for _ in 0..100 {
-            let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-            let x = Wire::rand(&mut rng, &Modulus::GF4 { p });
-            let y = x.hashback(Block::from(1u128), p as u16);
-            assert!(x != y);
+            let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+            let x = Wire::rand(&mut rng, &p);
+            let y = x.hashback(Block::from(1u128), &p);
+            assert_ne!(x, y);
             match y {
                 Wire::GF4 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
-                _ => (),
+                _ => panic!(),
             }
         }
     }
@@ -875,11 +856,10 @@ mod tests {
         for _ in 0..100 {
             let p = *irred_GFk.choose(&mut rng).unwrap();
             let x = Wire::rand(&mut rng, &Modulus::GFk { p: p.0, k: p.1 });
-            let y = x.hashback(Block::from(1u128), p.0);
-            assert!(x != y);
+            let y = x.hashback(Block::from(1u128), &Modulus::GFk { p: p.0, k: p.1 });
             match y {
                 Wire::GFk { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
-                _ => (),
+                _ => panic!(),
             }
         }
     }
@@ -887,20 +867,14 @@ mod tests {
     #[test]
     fn hash_GF8() {
         let mut rng = thread_rng();
-        let irred_GF8 = vec!(0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-            0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-            0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-            0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-            0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-            0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001);
         for _ in 0..100 {
-            let p = *irred_GF8.choose(&mut rng).unwrap();
-            let x = Wire::rand(&mut rng, &Modulus::GF8 { p });
+            let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+            let x = Wire::rand(&mut rng, p);
             let y = x.hashback(Block::from(1u128), p);
-            assert!(x != y);
+            assert_ne!(x, y);
             match y {
                 Wire::GF8 { elts, .. } => assert!(!elts.iter().all(|&y| y == 0)),
-                _ => (),
+                _ => panic!(),
             }
         }
     }
@@ -930,22 +904,20 @@ mod tests {
             (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)); 
         for _ in 0..1000 {
             // GF4
-            let p = 19;
-            x = Wire::rand(rng, &Modulus::GF4 { p: p });
+            x = Wire::rand(rng, &Modulus::X4_X_1);
             let xneg = x.negate();
             y = xneg.negate();
             assert_eq!(x, y);
 
             // GF8
-            let p = 283;
-            x = Wire::rand(rng, &Modulus::GF8 { p });
+            x = Wire::rand(rng, &Modulus::GF8 { p: 283 });
             let xneg = x.negate();
             y = xneg.negate();
             assert_eq!(x, y);
 
             // GFk
-            let p = irred_GFk.choose(rng).unwrap();
-            x = Wire::rand(rng, &Modulus::GFk { p: p.0, k: p.1 });
+            let (p,k) = irred_GFk.choose(rng).unwrap();
+            x = Wire::rand(rng, &Modulus::GFk { p: *p, k: *k });
             let xneg = x.negate();
             y = xneg.negate();
             assert_eq!(x, y);
@@ -962,14 +934,12 @@ mod tests {
             assert_eq!(ds, vec![0; ds.len()], "q={}", q);
         }
         // GF4 test
-        let p = 19;
-        let z = Wire::zero(&Modulus::GF4 { p: p }); 
+        let z = Wire::zero(&Modulus::X4_X_1);
         let ds = z.digits();
         assert_eq!(ds, vec![0; ds.len()]);
 
         // GF8 test
-        let p = 283;
-        let z = Wire::zero(&Modulus::GF8 { p }); 
+        let z = Wire::zero(&Modulus::GF8 { p: 283 });
         let ds = z.digits();
         assert_eq!(ds, vec![0; ds.len()]);
 
@@ -978,8 +948,8 @@ mod tests {
             (0b100101, 5), (0b110111, 5), (0b111011, 5), 
             (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
             (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)); 
-        let p = irred_GFk.choose(&mut rng).unwrap();
-        let z = Wire::zero(&Modulus::GFk { p: p.0, k: p.1 }); 
+        let (p,k) = irred_GFk.choose(&mut rng).unwrap();
+        let z = Wire::zero(&Modulus::GFk { p: *p, k: *k });
         let ds = z.digits();
         assert_eq!(ds, vec![0; ds.len()]);
     }
@@ -993,16 +963,14 @@ mod tests {
             let z = Wire::zero(&Modulus::Zq{ q });
             assert_eq!(x.minus(&x), z);
         }
-        // GF4 test 
-        let p = 19; 
-        let x = Wire::rand(&mut rng, &Modulus::GF4 { p  }); 
-        let z = Wire::zero(&Modulus::GF4{ p });
+        // GF4 test
+        let x = Wire::rand(&mut rng, &Modulus::X4_X_1);
+        let z = Wire::zero(&Modulus::X4_X_1);
         assert_eq!(x.minus(&x),z);
 
-        // GF8 test 
-        let p = 283; 
-        let x = Wire::rand(&mut rng, &Modulus::GF8 { p  }); 
-        let z = Wire::zero(&Modulus::GF8{ p });
+        // GF8 test
+        let x = Wire::rand(&mut rng, &Modulus::GF8 { p: 283  });
+        let z = Wire::zero(&Modulus::GF8{ p: 283 });
         assert_eq!(x.minus(&x),z);
 
         // GFk test 
@@ -1010,9 +978,9 @@ mod tests {
             (0b100101, 5), (0b110111, 5), (0b111011, 5), 
             (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
             (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)); 
-        let p = irred_GFk.choose(&mut rng).unwrap();
-        let x = Wire::rand(&mut rng, &Modulus::GFk { p: p.0, k: p.1  }); 
-        let z = Wire::zero(&Modulus::GFk{ p: p.0, k: p.1 });
+        let (p, k) = irred_GFk.choose(&mut rng).unwrap();
+        let x = Wire::rand(&mut rng, &Modulus::GFk { p: *p, k: *k  });
+        let z = Wire::zero(&Modulus::GFk{ p: *p, k: *k });
         assert_eq!(x.minus(&x),z);
     }
 
@@ -1025,13 +993,12 @@ mod tests {
             assert_eq!(x.plus(&Wire::zero(&Modulus::Zq{ q })), x);
         }
         // GF4 test
-        let x = Wire::rand(&mut rng, &Modulus::GF4{ p: 19 });
-        assert_eq!(x.plus(&Wire::zero(&Modulus::GF4 { p: 19 })), x);
+        let x = Wire::rand(&mut rng, &Modulus::X4_X_1);
+        assert_eq!(x.plus(&Wire::zero(&Modulus::X4_X_1)), x);
 
-        // GF8 test 
-        let p = 283; 
-        let x = Wire::rand(&mut rng, &Modulus::GF8 { p  }); 
-        let z = Wire::zero(&Modulus::GF8{ p });
+        // GF8 test
+        let x = Wire::rand(&mut rng, &Modulus::GF8 { p: 283 });
+        let z = Wire::zero(&Modulus::GF8{ p: 283 });
         assert_eq!(x.plus(&x),z);
 
         // GFk test 
@@ -1039,9 +1006,9 @@ mod tests {
             (0b100101, 5), (0b110111, 5), (0b111011, 5), 
             (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
             (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)); 
-        let p = irred_GFk.choose(&mut rng).unwrap();
-        let x = Wire::rand(&mut rng, &Modulus::GFk { p: p.0, k: p.1  }); 
-        let z = Wire::zero(&Modulus::GFk{ p: p.0, k: p.1 });
+        let (p, k) = irred_GFk.choose(&mut rng).unwrap();
+        let x = Wire::rand(&mut rng, &Modulus::GFk { p: *p, k: *k  });
+        let z = Wire::zero(&Modulus::GFk{ p: *p, k: *k });
         assert_eq!(x.plus(&x),z);
 
     }
@@ -1082,8 +1049,8 @@ mod tests {
     #[test]
     fn basic_arithmeticGF() {
         let mut rng = thread_rng();
-        let p_GF4 = 19;
-        let p_GF8 = 283;
+        let p_GF4 = Modulus::X4_X_1;
+        let p_GF8 = Modulus::GF8 { p: 283 };
         let irred_GFk = vec!((0b1101, 3), (0b1011, 3),
             (0b100101, 5), (0b110111, 5), (0b111011, 5), 
             (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
@@ -1093,13 +1060,13 @@ mod tests {
         let mut rng = thread_rng(); 
         for _ in 0..1000 {
             // GF 4
-            let x = Wire::rand(&mut rng, &Modulus::GF4 { p: p_GF4 });
-            assert_eq!(x.cmul(0), Wire::zero(&Modulus::GF4{ p: p_GF4}));
+            let x = Wire::rand(&mut rng, &p_GF4);
+            assert_eq!(x.cmul(0), Wire::zero(&p_GF4));
             assert_eq!(x.negate().negate(), x);
 
             // GF8
-            let x = Wire::rand(&mut rng, &Modulus::GF8 { p: p_GF8 });
-            assert_eq!(x.cmul(0), Wire::zero(&Modulus::GF8{ p: p_GF8}));
+            let x = Wire::rand(&mut rng, &p_GF8);
+            assert_eq!(x.cmul(0), Wire::zero(&p_GF8));
             assert_eq!(x.negate().negate(), x);
 
             // GF8
@@ -1123,7 +1090,6 @@ mod tests {
             let line = line.expect("Unable to read line");
             let p: Vec<&str> = line.split(' ').collect();
             let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
-            println!("x: {}, y: {} z: {}",x,y,z);
             let w = Wire::GF4 { p: (X4_X_1), elts: vec![x]};
             assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X_1), elts: vec![z] }); 
         }
@@ -1142,11 +1108,11 @@ mod tests {
             let line = line.expect("Unable to read line");
             let p: Vec<&str> = line.split(' ').collect();
             let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
-            println!("x: {}, y: {} z: {}",x,y,z);
             let w = Wire::GF4 { p: (X4_X3_1), elts: vec![x]};
             assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X3_1), elts: vec![z] }); 
         }
     }
+
     #[test]
     fn cmul_GF4_x4_x3_x2_x_1() {
         let filename = Path::new("./helper_test_files/test_gf4_x4_x3_x2_x_1.txt");
@@ -1160,7 +1126,6 @@ mod tests {
             let line = line.expect("Unable to read line");
             let p: Vec<&str> = line.split(' ').collect();
             let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
-            println!("x: {}, y: {} z: {}",x,y,z);
             let w = Wire::GF4 { p: (X4_X_1), elts: vec![x]};
             assert_eq!(w.cmul(y), Wire::GF4 { p: (X4_X_1), elts: vec![z] }); 
         }
@@ -1181,7 +1146,6 @@ mod tests {
             let line = line.expect("Unable to read line");
             let p: Vec<&str> = line.split(' ').collect();
             let (x, y, z) = p.into_iter().map(|s| s.parse::<u16>().unwrap()).collect_tuple().unwrap();
-            println!("x: {}, y: {} z: {}",x,y,z);
             let w = Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![x]};
             assert_eq!(w.cmul(y), Wire::GF8 { p: (X8_X4_X3_X_1), elts: vec![z] }); 
         }
@@ -1222,8 +1186,8 @@ mod tests {
     fn parallel_hash_GF4() {
         let n = 1000;
         let mut rng = thread_rng();
-        let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::GF4 { p })).collect_vec();
+        let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+        let ws = (0..n).map(|_| Wire::rand(&mut rng, p)).collect_vec();
 
         let hashes = crossbeam::scope(|scope| {
             let hs = ws
@@ -1232,7 +1196,7 @@ mod tests {
                 .collect_vec();
             hs.into_iter().map(|h| h.join().unwrap()).collect_vec()
         })
-        .unwrap();
+            .unwrap();
 
         let should_be = ws.iter().map(|w| w.hash(Block::default())).collect_vec();
 
@@ -1243,14 +1207,8 @@ mod tests {
     fn parallel_hash_GF8() {
         let n = 1000;
         let mut rng = thread_rng();
-        let irred_GF8 = vec!(0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-            0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-            0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-            0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-            0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-            0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001);
-        let p = *irred_GF8.choose(&mut rng).unwrap();
-        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::GF8 { p })).collect_vec();
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+        let ws = (0..n).map(|_| Wire::rand(&mut rng, p)).collect_vec();
 
         let hashes = crossbeam::scope(|scope| {
             let hs = ws
@@ -1259,7 +1217,7 @@ mod tests {
                 .collect_vec();
             hs.into_iter().map(|h| h.join().unwrap()).collect_vec()
         })
-        .unwrap();
+            .unwrap();
 
         let should_be = ws.iter().map(|w| w.hash(Block::default())).collect_vec();
 
@@ -1271,11 +1229,11 @@ mod tests {
         let n = 1000;
         let mut rng = thread_rng();
         let irred_GFk = vec!((0b1101, 3), (0b1011, 3),
-            (0b100101, 5), (0b110111, 5), (0b111011, 5),
-            (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
-            (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)); 
-        let p = *irred_GFk.choose(&mut rng).unwrap();
-        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::GFk { p: p.0, k: p.1 })).collect_vec();
+                             (0b100101, 5), (0b110111, 5), (0b111011, 5),
+                             (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
+                             (0b10000011, 7), (0b10011101, 7), (0b10111111, 7));
+        let (p, k) = *irred_GFk.choose(&mut rng).unwrap();
+        let ws = (0..n).map(|_| Wire::rand(&mut rng, &Modulus::GFk { p, k })).collect_vec();
 
         let hashes = crossbeam::scope(|scope| {
             let hs = ws
@@ -1284,7 +1242,7 @@ mod tests {
                 .collect_vec();
             hs.into_iter().map(|h| h.join().unwrap()).collect_vec()
         })
-        .unwrap();
+            .unwrap();
 
         let should_be = ws.iter().map(|w| w.hash(Block::default())).collect_vec();
 

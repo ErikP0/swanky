@@ -31,16 +31,10 @@ impl HasModulus for DummyVal {
     }
 }
 
-impl std::fmt::Display for DummyVal {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(fmt, "{:#04x}", self.val())
-    }
-}
-
 impl DummyVal {
     /// Create a new DummyVal.
-    pub fn new(val: u16, modulus: &Modulus) -> Self {
-        Self { val, modulus: *modulus }
+    pub fn new(val: u16, modulus: Modulus) -> Self {
+        Self { val, modulus: modulus }
     }
 
     /// Extract the value.
@@ -62,7 +56,7 @@ impl FancyInput for Dummy {
 
     /// Encode a single dummy value.
     fn encode(&mut self, value: u16, modulus: &Modulus) -> Result<DummyVal, DummyError> {
-        Ok(DummyVal::new(value, modulus))
+        Ok(DummyVal::new(value, *modulus))
     }
 
     /// Encode a slice of inputs and a slice of moduli as DummyVals.
@@ -73,7 +67,7 @@ impl FancyInput for Dummy {
         Ok(xs
             .iter()
             .zip(moduli.iter())
-            .map(|(x, q)| DummyVal::new(*x, q))
+            .map(|(x, q)| DummyVal::new(*x, *q))
             .collect())
     }
 
@@ -88,17 +82,16 @@ impl Fancy for Dummy {
     type Error = DummyError;
 
     fn constant(&mut self, val: u16, modulus: &Modulus) -> Result<DummyVal, Self::Error> {
-        Ok(DummyVal::new(val, modulus))
+        Ok(DummyVal::new(val, *modulus))
     }
 
     fn add(&mut self, x: &DummyVal, y: &DummyVal) -> Result<DummyVal, Self::Error> {
         if x.modulus() != y.modulus() {
             return Err(Self::Error::from(FancyError::UnequalModuli));
         }
-        let result = if let Modulus::Zq { q } = x.modulus() {
-            (x.val + y.val) % q
-        } else {
-            x.val ^ y.val
+        let result = match x.modulus {
+            Modulus::Zq { q } => (x.val + y.val) % q,
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} => x.val ^ y.val,
         };
 
         Ok(DummyVal {
@@ -112,14 +105,12 @@ impl Fancy for Dummy {
             return Err(Self::Error::from(FancyError::UnequalModuli));
         }
 
-        let result = if let Modulus::Zq { q } = x.modulus() {
-            (q + x.val - y.val) % q
-        } else {
-            // In F2 subtraction is the same as addition ! 
-            x.val ^ y.val
+        let result = match x.modulus {
+            Modulus::Zq { q } => (q + x.val - y.val) % q,
+            Modulus::GF4 {..} | Modulus::GF8 {..} | Modulus::GFk {..} =>
+                // In F2 subtraction is the same as addition !
+                x.val ^ y.val,
         };
-
-
 
         Ok(DummyVal {
             val: result,
@@ -142,7 +133,6 @@ impl Fancy for Dummy {
             }
         };
 
-        
         Ok(DummyVal {
             val: result,
             modulus: x.modulus,
@@ -178,31 +168,11 @@ impl Fancy for Dummy {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
         let xmodulus = x.modulus();
 
-        match *modulus {
-            Modulus::Zq { q } => {
-                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < q) {
-                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
-                }
-            },
-            Modulus::GF4 { .. } => {
-                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 16) {
-                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
-                }
-            },
-            Modulus::GF8 { .. } => {
-                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 256) {
-                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
-                }
-            },
-            Modulus::GFk { k, .. } => {
-                if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < 2_u16.pow(k.into())) {
-                    return Err(Self::Error::from(FancyError::InvalidTruthTable));
-                }
-            },
+        if tt.len() < xmodulus.size() as usize || !tt.iter().all(|&x| x < modulus.size()) {
+            return Err(Self::Error::from(FancyError::InvalidTruthTable));
         }
        
         let val = tt[x.val as usize];
-        // println!("xval: {}, val: {}, tt: {:?}", x.val, val, tt);
         Ok(DummyVal { val, modulus: *modulus })
     }
 
@@ -635,7 +605,7 @@ mod bundle {
                         util::as_mixed_radix(Q - 1, &mods)
                             .into_iter()
                             .zip(&mods)
-                            .map(|(x, q)| DummyVal::new(x, &Modulus::Zq { q: *q }))
+                            .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: *q }))
                             .collect_vec(),
                     )
                 })
@@ -663,7 +633,7 @@ mod bundle {
                             util::as_mixed_radix(x, &mods)
                                 .into_iter()
                                 .zip(&mods)
-                                .map(|(x, q)| DummyVal::new(x, &Modulus::Zq { q: *q }))
+                                .map(|(x, q)| DummyVal::new(x, Modulus::Zq { q: *q }))
                                 .collect_vec(),
                         )
                     })
@@ -797,7 +767,7 @@ mod GF4_dummy {
     fn test_addition() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             let x = (rng.gen::<u8>()&(15)) as u16;
             let y = (rng.gen::<u8>()&(15)) as u16;
             let mut d = Dummy::new();
@@ -816,7 +786,7 @@ mod GF4_dummy {
     fn test_subtraction() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+            let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
             let x = (rng.gen::<u8>()&(15)) as u16;
             let y = (rng.gen::<u8>()&(15)) as u16;
             let mut d = Dummy::new();
@@ -833,43 +803,33 @@ mod GF4_dummy {
 
     #[test]
     fn test_cmul() {
-        // let mut rng = thread_rng();
-        for _ in 0..NITERS { // iterate over possibilities?
-            let p = Modulus::GF4 { p: 19 };
-            let x = 2_u16.pow(3)+1;
-            let c = 2_u16.pow(3)+2_u16.pow(2)+2+1;
-            let mut d = Dummy::new();
-            let out;
-            {
-                let x = d.encode(x, &p).unwrap();
-                let z = d.cmul(&x, c).unwrap();
-                out = d.output(&z).unwrap().unwrap();
-            }
-            assert_eq!(out, 2_u16.pow(3)+2_u16.pow(2)+2);
-        }
+        let p = Modulus::X4_X_1;
+        let x = 2_u16.pow(3) + 1;
+        let c = 2_u16.pow(3) + 2_u16.pow(2) + 2 + 1;
+        let mut d = Dummy::new();
+        let x = d.encode(x, &p).unwrap();
+        let z = d.cmul(&x, c).unwrap();
+        let out = d.output(&z).unwrap().unwrap();
+        assert_eq!(out, 2_u16.pow(3) + 2_u16.pow(2) + 2);
     }
 
     #[test]
-        fn test_proj() {
-            let mut rng = thread_rng();
-            for _ in 0..NITERS {
-                let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-        
-                let x = (rng.gen::<u8>()&(15)) as u16;
-                let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
-                let mut d = Dummy::new();
-                let out;
-                
-                {
-                    let x = d.encode(x, &p).unwrap();
-                    let z = d.proj(&x, &p, Some(tab)).unwrap();
-                    out = d.output(&z).unwrap().unwrap();
-                }
-                assert_eq!(out, (x*9 + 1) % p.size());
-            
-            }
+    fn test_proj() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+
+            let x = (rng.gen::<u8>() & (15)) as u16;
+            let tab = (0..p.size()).map(|i| (i * 9 + 1) % p.size()).collect_vec();
+            let mut d = Dummy::new();
+            let out= {
+                let x = d.encode(x, &p).unwrap();
+                let z = d.proj(&x, &p, Some(tab)).unwrap();
+                d.output(&z).unwrap().unwrap()
+            };
+            assert_eq!(out, (x * 9 + 1) % p.size());
         }
-        //}}}
+    }
 }
 
 #[cfg(test)]
@@ -879,18 +839,12 @@ mod GF8_dummy {
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
     const NITERS: usize = 1 << 10;
-    const IRRED_GF8: [u16; 30] = [0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-        0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-        0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-        0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-        0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-        0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
 
     #[test]
     fn test_addition() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             let x = (rng.gen::<u8>()) as u16;
             let y = (rng.gen::<u8>()) as u16;
             let mut d = Dummy::new();
@@ -909,7 +863,7 @@ mod GF8_dummy {
     fn test_subtraction() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+            let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
             let x = (rng.gen::<u8>()) as u16;
             let y = (rng.gen::<u8>()) as u16;
             let mut d = Dummy::new();
@@ -926,43 +880,38 @@ mod GF8_dummy {
 
     #[test]
     fn test_cmul() {
-        // let mut rng = thread_rng();
-        for _ in 0..NITERS { // iterate over possibilities?
-            let p = Modulus::GF8 { p: 283 };
-            let x = 2_u16.pow(7) + 2_u16.pow(3) +1;
-            let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
-            let mut d = Dummy::new();
-            let out;
-            {
-                let x = d.encode(x, &p).unwrap();
-                let z = d.cmul(&x, c).unwrap();
-                out = d.output(&z).unwrap().unwrap();
-            }
-            assert_eq!(out, 2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1);
+        let p = Modulus::GF8 { p: 283 };
+        let x = 2_u16.pow(7) + 2_u16.pow(3) + 1;
+        let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
+        let mut d = Dummy::new();
+        let out;
+        {
+            let x = d.encode(x, &p).unwrap();
+            let z = d.cmul(&x, c).unwrap();
+            out = d.output(&z).unwrap().unwrap();
         }
+        assert_eq!(out, 2_u16.pow(5) + 2_u16.pow(4) + 2_u16.pow(3) + 1);
     }
 
     #[test]
-        fn test_proj() {
-            let mut rng = thread_rng();
-            for _ in 0..NITERS {
-                let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap()};
-        
-                let x = (rng.gen::<u8>()) as u16;
-                let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
-                let mut d = Dummy::new();
-                let out;
-                
-                {
-                    let x = d.encode(x, &p).unwrap();
-                    let z = d.proj(&x, &p, Some(tab)).unwrap();
-                    out = d.output(&z).unwrap().unwrap();
-                }
-                assert_eq!(out, (x*9 + 1) % p.size());
-            
+    fn test_proj() {
+        let mut rng = thread_rng();
+        for _ in 0..NITERS {
+            let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+
+            let x = (rng.gen::<u8>()) as u16;
+            let tab = (0..p.size()).map(|i| (i * 9 + 1) % p.size()).collect_vec();
+            let mut d = Dummy::new();
+            let out;
+
+            {
+                let x = d.encode(x, &p).unwrap();
+                let z = d.proj(&x, &p, Some(tab)).unwrap();
+                out = d.output(&z).unwrap().unwrap();
             }
+            assert_eq!(out, (x * 9 + 1) % p.size());
         }
-        //}}}
+    }
 }
 
 #[cfg(test)]
@@ -972,7 +921,7 @@ mod GFk_dummy {
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
     const NITERS: usize = 1 << 10;
-    const IRRED_GFk: [(u16, u8); 11] = [(0b1101, 3), (0b1011, 3),
+    const IRRED_GF_K: [(u16, u8); 11] = [(0b1101, 3), (0b1011, 3),
     (0b100101, 5), (0b110111, 5), (0b111011, 5), 
     (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
     (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)]; 
@@ -981,8 +930,8 @@ mod GFk_dummy {
     fn test_addition() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
+            let (p, k) = *IRRED_GF_K.choose(&mut rng).unwrap();
+            let p = Modulus::GFk { p, k };
             let x = rng.gen::<u8>() as u16;
             let y = rng.gen::<u8>() as u16;
             let mut d = Dummy::new();
@@ -1001,8 +950,8 @@ mod GFk_dummy {
     fn test_subtraction() {
         let mut rng = thread_rng();
         for _ in 0..NITERS {
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
+            let (p, k) = *IRRED_GF_K.choose(&mut rng).unwrap();
+            let p = Modulus::GFk { p, k };
             let x = (rng.gen::<u8>()) as u16;
             let y = (rng.gen::<u8>()) as u16;
             let mut d = Dummy::new();
@@ -1019,28 +968,25 @@ mod GFk_dummy {
 
     #[test]
     fn test_cmul() {
-        // let mut rng = thread_rng();
-        for _ in 0..NITERS { // iterate over possibilities?
-            let p = Modulus::GFk { p: 283, k: 8 };
-            let x = 2_u16.pow(7) + 2_u16.pow(3) +1;
-            let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
-            let mut d = Dummy::new();
-            let out;
-            {
-                let x = d.encode(x, &p).unwrap();
-                let z = d.cmul(&x, c).unwrap();
-                out = d.output(&z).unwrap().unwrap();
-            }
-            assert_eq!(out, 2_u16.pow(5)+2_u16.pow(4)+2_u16.pow(3)+1);
+        let p = Modulus::GFk { p: 283, k: 8 };
+        let x = 2_u16.pow(7) + 2_u16.pow(3) + 1;
+        let c = 2_u16.pow(6) + 2_u16.pow(5) + 2_u16.pow(2) + 2 + 1;
+        let mut d = Dummy::new();
+        let out;
+        {
+            let x = d.encode(x, &p).unwrap();
+            let z = d.cmul(&x, c).unwrap();
+            out = d.output(&z).unwrap().unwrap();
         }
+        assert_eq!(out, 2_u16.pow(5) + 2_u16.pow(4) + 2_u16.pow(3) + 1);
     }
 
     #[test]
         fn test_proj() {
             let mut rng = thread_rng();
             for _ in 0..NITERS {
-                let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-                let p = Modulus::GFk { p: poly.0, k: poly.1 };
+                let (p, k) = *IRRED_GF_K.choose(&mut rng).unwrap();
+                let p = Modulus::GFk { p, k };
                 let x = (rng.gen::<u8>() % p.size() as u8) as u16;
                 let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
                 let mut d = Dummy::new();
@@ -1055,5 +1001,4 @@ mod GFk_dummy {
             
             }
         }
-        //}}}
 }

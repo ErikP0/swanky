@@ -55,25 +55,23 @@ pub trait FancyInput {
     fn encode_bundle(
         &mut self,
         values: &[u16],
-        moduli: &[u16],
+        moduli: &[Modulus],
     ) -> Result<Bundle<Self::Item>, Self::Error> {
-        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec();
-        self.encode_many(values, &moduliM).map(Bundle::new)
+        self.encode_many(values, moduli).map(Bundle::new)
     }
 
     /// Receive a bundle.
-    fn receive_bundle(&mut self, moduli: &[u16]) -> Result<Bundle<Self::Item>, Self::Error> {
-        let moduliM = moduli.into_iter().map(|q| Modulus::Zq { q: *q }).collect_vec();
-        self.receive_many(&moduliM).map(Bundle::new)
+    fn receive_bundle(&mut self, moduli: &[Modulus]) -> Result<Bundle<Self::Item>, Self::Error> {
+        self.receive_many(moduli).map(Bundle::new)
     }
 
     /// Encode many input bundles.
     fn encode_bundles(
         &mut self,
         values: &[Vec<u16>],
-        moduli: &[Vec<u16>],
+        moduli: &[Vec<Modulus>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
+        let qs = moduli.iter().flatten().cloned().collect_vec();
         let xs = values.iter().flatten().cloned().collect_vec();
         if xs.len() != qs.len() {
             return Err(
@@ -94,9 +92,9 @@ pub trait FancyInput {
     /// Receive many input bundles.
     fn receive_many_bundles(
         &mut self,
-        moduli: &[Vec<u16>],
+        moduli: &[Vec<Modulus>],
     ) -> Result<Vec<Bundle<Self::Item>>, Self::Error> {
-        let qs = moduli.iter().flatten().cloned().map(|q| Modulus::Zq { q }).collect_vec();
+        let qs = moduli.iter().flatten().cloned().collect_vec();
         let mut wires = self.receive_many(&qs)?;
         let buns = moduli
             .iter()
@@ -116,12 +114,16 @@ pub trait FancyInput {
     ) -> Result<CrtBundle<Self::Item>, Self::Error> {
         let qs = util::factor(modulus);
         let xs = util::crt(value, &qs);
+        let qs = qs.into_iter()
+            .map(|q| Modulus::Zq {q})
+            .collect::<Vec<_>>();
         self.encode_bundle(&xs, &qs).map(CrtBundle::from)
     }
 
     /// Receive an CRT input bundle.
     fn crt_receive(&mut self, modulus: u128) -> Result<CrtBundle<Self::Item>, Self::Error> {
-        let qs = util::factor(modulus);
+        let qs = util::factor(modulus).into_iter().map(|q| Modulus::Zq {q})
+            .collect::<Vec<_>>();
         self.receive_bundle(&qs).map(CrtBundle::from)
     }
 
@@ -178,13 +180,13 @@ pub trait FancyInput {
         nbits: usize,
     ) -> Result<BinaryBundle<Self::Item>, Self::Error> {
         let xs = util::u128_to_bits(value, nbits);
-        self.encode_bundle(&xs, &vec![2; nbits])
+        self.encode_bundle(&xs, &vec![Modulus::Zq {q: 2}; nbits])
             .map(BinaryBundle::from)
     }
 
     /// Receive an binary input bundle.
     fn bin_receive(&mut self, nbits: usize) -> Result<BinaryBundle<Self::Item>, Self::Error> {
-        self.receive_bundle(&vec![2; nbits]).map(BinaryBundle::from)
+        self.receive_bundle(&vec![Modulus::Zq {q: 2}; nbits]).map(BinaryBundle::from)
     }
 
     /// Encode many binary input bundles.

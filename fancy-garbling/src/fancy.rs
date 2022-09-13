@@ -87,23 +87,17 @@ pub trait Fancy {
 
     /// Xor is just addition, with the requirement that `x` and `y` are mod 2.
     fn xor(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if  let Modulus::Zq{ q:2 } = x.modulus() {
-            if  let Modulus::Zq{ q:2 } = y.modulus() {
-                self.add(x, y)
-            }
-            else {
-                return Err(Self::Error::from(FancyError::InvalidArgMod {
-                    got: y.modulus(),
-                    needed: Modulus::Zq { q: 2 },
-                }));
-            }
-        } else {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
+        match (x.modulus(), y.modulus()) {
+            (Modulus::Zq { q: 2 }, Modulus::Zq { q: 2 }) => self.add(x, y),
+            (Modulus::Zq { q: 2 }, _) => Err(Self::Error::from(FancyError::InvalidArgMod {
+                got: y.modulus(),
+                needed: Modulus::Zq { q: 2 },
+            })),
+            _ => Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
                 needed: Modulus::Zq { q: 2 },
-            }));
+            }))
         }
-
     }
 
     /// Negate by xoring `x` with `1`.
@@ -122,44 +116,36 @@ pub trait Fancy {
 
     /// And is just multiplication, with the requirement that `x` and `y` are mod 2.
     fn and(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if  let Modulus::Zq{ q:2 } = x.modulus() {
-            if  let Modulus::Zq{ q:2 } = y.modulus() {
-                self.mul(x, y)
-            }
-            else {
-                return Err(Self::Error::from(FancyError::InvalidArgMod {
-                    got: y.modulus(),
-                    needed: Modulus::Zq { q: 2 },
-                }));
-            }
-        } else {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
+        match (x.modulus(), y.modulus()) {
+            (Modulus::Zq { q: 2 }, Modulus::Zq { q: 2 }) => self.mul(x, y),
+            (Modulus::Zq { q: 2 }, _) => Err(Self::Error::from(FancyError::InvalidArgMod {
+                got: y.modulus(),
+                needed: Modulus::Zq { q: 2 },
+            })),
+            _ => Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
                 needed: Modulus::Zq { q: 2 },
-            }));
+            }))
         }
     }
 
     /// Or uses Demorgan's Rule implemented with multiplication and negation.
     fn or(&mut self, x: &Self::Item, y: &Self::Item) -> Result<Self::Item, Self::Error> {
-        if  let Modulus::Zq{ q:2 } = x.modulus() {
-            if  let Modulus::Zq{ q:2 } = y.modulus() {
+        match (x.modulus(), y.modulus()) {
+            (Modulus::Zq { q: 2 }, Modulus::Zq { q: 2 }) => {
                 let notx = self.negate(x)?;
                 let noty = self.negate(y)?;
                 let z = self.and(&notx, &noty)?;
                 self.negate(&z)
-            }
-            else {
-                return Err(Self::Error::from(FancyError::InvalidArgMod {
-                    got: y.modulus(),
-                    needed: Modulus::Zq { q: 2 },
-                }));
-            }
-        } else {
-            return Err(Self::Error::from(FancyError::InvalidArgMod {
+            },
+            (Modulus::Zq { q: 2 }, _) => Err(Self::Error::from(FancyError::InvalidArgMod {
+                got: y.modulus(),
+                needed: Modulus::Zq { q: 2 },
+            })),
+            _ => Err(Self::Error::from(FancyError::InvalidArgMod {
                 got: x.modulus(),
                 needed: Modulus::Zq { q: 2 },
-            }));
+            }))
         }
     }
 

@@ -95,7 +95,6 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
                     return self.mul(B, A);
                 }
                 let qM = A.modulus();
-                // let qb = B.modulus();
                 let unequal = q != qb;
                 let ngates = q as usize + qb as usize - 2 + unequal as usize;
                 let mut gate = Vec::with_capacity(ngates);
@@ -110,7 +109,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         
                 // garbler's half gate
                 let L = if A.color() == 0 {
-                    A.hashback(g, q)
+                    A.hashback(g, &qM)
                 } else {
                     let ct_left = gate[A.color() as usize - 1];
                     Wire::from_block(ct_left ^ A.hash(g), &qM)
@@ -118,7 +117,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         
                 // evaluator's half gate
                 let R = if B.color() == 0 {
-                    B.hashback(g, q)
+                    B.hashback(g, &qM)
                 } else {
                     let ct_right = gate[(q + B.color()) as usize - 2];
                     Wire::from_block(ct_right ^ B.hash(g), &qM)
@@ -145,23 +144,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
     }
 
     fn proj(&mut self, x: &Wire, modulus: &Modulus, _: Option<Vec<u16>>) -> Result<Wire, EvaluatorError> {
-        let q: u16;
-        
-        if let Modulus::Zq { q: qq } = x.modulus() {
-            q = qq;
-        }
-        else if let Modulus::GF4 { .. } = x.modulus() {
-            q = 16 as u16;
-        }
-        else if let Modulus::GF8 { .. } = x.modulus() {
-            q = 256 as u16;
-        }
-        else if let Modulus::GFk { k, .. } = x.modulus() {
-            q = 2_u16.pow(k.into()) as u16;
-        }
-        else {
-            return Err(EvaluatorError::FancyError(FancyError::InvalidArg(String::from("Not supported for combining a field and ring element."))));
-        }                
+        let q = x.modulus().size();
         let ngates = (q - 1) as usize;
         let mut gate = Vec::with_capacity(ngates);
         for _ in 0..ngates {
@@ -170,7 +153,7 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         }
         let t = tweak(self.current_gate());
         if x.color() == 0 {
-            Ok(x.hashback(t, modulus.value()))
+            Ok(x.hashback(t, modulus))
         } else {
             let ct = gate[x.color() as usize - 1];
             Ok(Wire::from_block(ct ^ x.hash(t), modulus))
@@ -183,50 +166,13 @@ impl<C: AbstractChannel> Fancy for Evaluator<C> {
         let mut decoded = None;
 
         // Receive the output ciphertext from the garbler
-        match modulus {
-            Modulus::Zq { q } => {
-                let ct = self.channel.read_blocks(q as usize)?;
-                // Attempt to brute force x using the output ciphertext
-                for k in 0..q {
-                    let hashed_wire = x.hash(output_tweak(i, k));
-                    if hashed_wire == ct[k as usize] {
-                        decoded = Some(k);
-                        break;
-                    }
-                }
-            },
-            Modulus::GF4 { .. } => {     // not sure about this
-                let ct = self.channel.read_blocks(16 as usize)?;
-                // Attempt to brute force x using the output ciphertext
-                for k in 0..16 {
-                    let hashed_wire = x.hash(output_tweak(i, k));
-                    if hashed_wire == ct[k as usize] {
-                        decoded = Some(k);
-                        break;
-                    }
-                }
-            },
-            Modulus::GF8 { .. } => {     // not sure about this
-                let ct = self.channel.read_blocks(256 as usize)?;
-                // Attempt to brute force x using the output ciphertext
-                for k in 0..256 {
-                    let hashed_wire = x.hash(output_tweak(i, k));
-                    if hashed_wire == ct[k as usize] {
-                        decoded = Some(k);
-                        break;
-                    }
-                }
-            }
-            Modulus::GFk { k, .. } => {     // not sure about this
-                let ct = self.channel.read_blocks(2_u16.pow(k.into()) as usize)?;
-                // Attempt to brute force x using the output ciphertext
-                for k in 0..2_u16.pow(k as u32) {
-                    let hashed_wire = x.hash(output_tweak(i, k));
-                    if hashed_wire == ct[k as usize] {
-                        decoded = Some(k);
-                        break;
-                    }
-                }
+        let ct = self.channel.read_blocks(modulus.size() as usize)?;
+        // Attempt to brute force x using the output ciphertext
+        for k in 0..modulus.size() {
+            let hashed_wire = x.hash(output_tweak(i, k));
+            if hashed_wire == ct[k as usize] {
+                decoded = Some(k);
+                break;
             }
         }
 

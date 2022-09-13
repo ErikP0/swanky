@@ -11,7 +11,7 @@ use crate::{
     dummy::{Dummy, DummyVal},
     errors::{CircuitBuilderError, DummyError, FancyError},
     fancy::{BinaryBundle, CrtBundle, Fancy, FancyInput, HasModulus},
-    wire::Modulus, FancyReveal
+    wire::Modulus
 };
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -132,7 +132,7 @@ impl Circuit {
     }
 
     /// Evaluate the circuit using fancy object `f`.
-    pub fn eval<F: Fancy + FancyReveal>(
+    pub fn eval<F: Fancy>(
         &self,
         f: &mut F,
         garbler_inputs: &[F::Item],
@@ -244,12 +244,12 @@ impl Circuit {
         let gb = garbler_inputs
             .iter()
             .zip(self.garbler_input_refs.iter())
-            .map(|(x, r)| DummyVal::new(*x, &r.modulus()))
+            .map(|(x, r)| DummyVal::new(*x, r.modulus()))
             .collect_vec();
         let ev = evaluator_inputs
             .iter()
             .zip(self.evaluator_input_refs.iter())
-            .map(|(x, r)| DummyVal::new(*x, &r.modulus()))
+            .map(|(x, r)| DummyVal::new(*x, r.modulus()))
             .collect_vec();
 
         let outputs = self.eval(&mut dummy, &gb, &ev)?;
@@ -384,17 +384,7 @@ impl Fancy for CircuitBuilder {
         tt: Option<Vec<u16>>,
     ) -> Result<CircuitRef, Self::Error> {
         let tt = tt.ok_or_else(|| Self::Error::from(FancyError::NoTruthTable))?;
-        if tt.len() < match xref.modulus() {
-                        Modulus::Zq { .. } => xref.modulus().size().into(),
-                        Modulus::GF4 { .. } => xref.modulus().size().into(),
-                        Modulus::GF8 { .. } => xref.modulus().size().into(),
-                        Modulus::GFk { .. } => xref.modulus().size().into(),
-        } || !tt.iter().all(|&x| x < match output_modulus {
-                                        Modulus::Zq { .. } => output_modulus.size().into(),
-                                        Modulus::GF4 { .. } => output_modulus.size().into(),
-                                        Modulus::GF8 { .. } => output_modulus.size().into(),
-                                        Modulus::GFk { .. } => output_modulus.size().into(),
-        }) {
+        if tt.len() < xref.modulus().size() as usize  || !tt.iter().all(|&x| x < output_modulus.size()) {
             return Err(Self::Error::from(FancyError::InvalidTruthTable));
         }
         let gate = Gate::Proj {
@@ -407,7 +397,7 @@ impl Fancy for CircuitBuilder {
     }
 
     fn mul(&mut self, xref: &CircuitRef, yref: &CircuitRef) -> Result<CircuitRef, Self::Error> {
-        match (xref.modulus, yref.modulus()) {
+        match (xref.modulus(), yref.modulus()) {
             (Modulus::Zq { q: xmod }, Modulus::Zq { q: ymod }) => {
                 if xmod < ymod {
                     return self.mul(yref, xref);
@@ -539,7 +529,7 @@ mod plaintext {
     use itertools::Itertools;
     use rand::{thread_rng, seq::SliceRandom, Rng};
 
-    #[test] //  and_gate_fan_n
+    #[test] // and_gate_fan_n
     fn and_gate_fan_n() {
         let mut rng = thread_rng();
 
@@ -640,13 +630,7 @@ mod plaintext {
         let mut rng = thread_rng();
         for _ in 0..64 {
             let inps = (0..c.num_garbler_inputs())
-                .map(|i| rng.gen_u16() % match c.garbler_input_mod(i) {
-                                                    Modulus::Zq { q } => q,
-                                                    Modulus::GF4 { .. } => 16,
-                                                    Modulus::GF8 { .. } => 256,
-                                                    Modulus::GFk {k, .. } => 2_u16.pow(k.into()),
-                                                    }
-                )
+                .map(|i| rng.gen_u16() % c.garbler_input_mod(i).size())
                 .collect_vec();
             let s: u16 = inps.iter().sum();
             println!("{:?}, sum={}", inps, s);
@@ -655,7 +639,7 @@ mod plaintext {
         }
     }
     
-    #[test] // constants 
+    #[test] // constants
     fn constants_Zq() {
         let mut b = CircuitBuilder::new();
         let mut rng = thread_rng();
@@ -678,28 +662,27 @@ mod plaintext {
     }
     
 
-    #[test] // constants 
-        fn constants_GF4() {
-            let mut b = CircuitBuilder::new();
-            let mut rng = thread_rng();
+    #[test]
+    fn constants_GF4() {
+        let mut b = CircuitBuilder::new();
+        let mut rng = thread_rng();
     
-            let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-            let c = (rng.gen::<u8>()&(15)) as u16;
+        let modulus = Modulus::GF4_MODULI.choose(&mut rng).unwrap();
+        let c = (rng.gen::<u8>()&(15)) as u16;
     
-            let x = b.evaluator_input(&Modulus::GF4 { p });
-            let y = b.constant(c as u16, &Modulus::GF4 { p }).unwrap();
-            let z = b.add(&x, &y).unwrap();
-            b.output(&z).unwrap();
+        let x = b.evaluator_input(modulus);
+        let y = b.constant(c as u16, modulus).unwrap();
+        let z = b.add(&x, &y).unwrap();
+        b.output(&z).unwrap();
     
-            let circ = b.finish();
+        let circ = b.finish();
     
-            for _ in 0..64 {
-                let x = (rng.gen::<u8>()&(15)) as u16;
-                let z = circ.eval_plain(&[], &[x as u16]).unwrap();
-                assert_eq!(z[0], (x ^ c) as u16);
-            }
+        for _ in 0..64 {
+            let x = (rng.gen::<u8>()&(15)) as u16;
+            let z = circ.eval_plain(&[], &[x as u16]).unwrap();
+            assert_eq!(z[0], (x ^ c) as u16);
         }
-        //
+    }
 }
 
 #[cfg(test)]
@@ -1088,108 +1071,95 @@ mod bundle {
 
 #[cfg(test)]
 mod GF4 {
-    use rand::{thread_rng, Rng};
-    use super::*;   
-    use rand::seq::SliceRandom;
+    use super::*;
 
     #[test] // GF4 input and output
-        fn test_GF4_input_output() {
-            let mut rng = thread_rng();
-            let p = *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8;
-    
+    fn test_GF4_input_output() {
+        for modulus in &Modulus::GF4_MODULI {
             let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&Modulus::GF4 { p });
+            let x = b.garbler_input(modulus);
             b.output(&x).unwrap();
             let c = b.finish();
-    
-            println!("{:?}", c.output_refs);
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>()&(15);
-                let res = c.eval_plain(&[x as u16], &[]).unwrap();
-                println!("{:?}", res);
-                assert_eq!(x as u16, res[0]);
+
+            for x in 0..16 {
+                let res = c.eval_plain(&[x], &[]).unwrap();
+                assert_eq!(x, res[0]);
             }
         }
-    
-        
-        #[test] // GF4 addition 
-        fn test_GF4_addition() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-    
+    }
+
+    #[test] // GF4 addition
+    fn test_GF4_addition() {
+        for modulus in &Modulus::GF4_MODULI {
             let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
+            let x = b.garbler_input(modulus);
+            let y = b.evaluator_input(modulus);
             let z = b.add(&x, &y).unwrap();
             b.output(&z).unwrap();
             let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>()&(15);
-                let y = rng.gen::<u8>()&(15);
-                let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
-                assert_eq!(res[0], (x ^ y) as u16);
+
+            for x in 0..16 {
+                for y in 0..16 {
+                    let res = c.eval_plain(&[x], &[y]).unwrap();
+                    assert_eq!(res[0], x ^ y);
+                }
             }
         }
-        
-        #[test] // GF4 subtraction 
-        fn test_GF4_subtraction() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
+    }
 
+    #[test] // GF4 subtraction
+    fn test_GF4_subtraction() {
+        for modulus in &Modulus::GF4_MODULI {
             let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
+            let x = b.garbler_input(modulus);
+            let y = b.evaluator_input(modulus);
             let z = b.sub(&x, &y).unwrap();
             b.output(&z).unwrap();
             let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = (rng.gen::<u8>()&(15)) as u16;
-                let y = (rng.gen::<u8>()&(15)) as u16;
-                let res = c.eval_plain(&[x], &[y]).unwrap();
-                assert_eq!(res[0], (x ^ y));
-            }
-        }
-        
-        #[test] // bundle cmul 
-        fn test_GF4_cmul() {
-            let p = Modulus::GF4 { p: 19 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = 2_u16.pow(3)+2_u16.pow(2)+2+1;
-            let z = b.cmul(&x, y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            
-            let x = &[2_u16.pow(3)+1];
-            let res = c.eval_plain(x, &[]).unwrap();
-            assert_eq!(res[0], 2_u16.pow(3)+2_u16.pow(2)+2);
-        }
-        
 
-        #[test] // GF4 proj 
-        fn test_GF4_proj() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF4 { p: *vec!(19, 21, 31).choose(&mut rng).unwrap() as u8 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
-            let z = b.proj(&x, &p, Some(tab)).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = &[(rng.gen::<u8>()&(15)) as u16];
-                let res = c.eval_plain(x, &[]).unwrap();
-                assert_eq!(res[0], (x[0]*9 + 1) % p.size());
+            for x in 0..16 {
+                for y in 0..16 {
+                    let res = c.eval_plain(&[x], &[y]).unwrap();
+                    assert_eq!(res[0], x ^ y);
+                }
             }
         }
-        
+    }
+
+    #[test] // bundle cmul
+    fn test_GF4_cmul() {
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&Modulus::X4_X_1);
+        // y = X^3 + X^2 + X + 1
+        let y = 2_u16.pow(3) + 2_u16.pow(2) + 2 + 1;
+        let z = b.cmul(&x, y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        // x = X^3 + 1
+        let x = &[2_u16.pow(3) + 1];
+        let res = c.eval_plain(x, &[]).unwrap();
+        // x * y mod X^4 + X +1 = X^3 + X^2 + X
+        assert_eq!(res[0], 2_u16.pow(3) + 2_u16.pow(2) + 2);
+    }
+
+    #[test] // GF4 proj
+    fn test_GF4_proj() {
+        for modulus in &Modulus::GF4_MODULI {
+            let mut b = CircuitBuilder::new();
+            let x = b.garbler_input(modulus);
+            let tab = (0..modulus.size()).map(|i| (i * 9 + 1) % modulus.size()).collect_vec();
+            let z = b.proj(&x, modulus, Some(tab.clone())).unwrap();
+            assert_eq!(z.modulus(), *modulus);
+            b.output(&z).unwrap();
+            let c = b.finish();
+
+            for x in 0..modulus.size() {
+                let res = c.eval_plain(&[x], &[]).unwrap();
+                assert_eq!(res, vec![tab[x as usize]]);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1198,111 +1168,100 @@ mod GF8 {
     use super::*;   
     use rand::seq::SliceRandom;
 
-    const IRRED_GF8: [u16; 30] = [0b100011011, 0b100011101, 0b100101011, 0b100101101, 0b100111001, 
-        0b100111111, 0b101001101, 0b101011111, 0b101100011, 0b101100101,
-        0b101101001, 0b101110001, 0b101110111, 0b101111011, 0b110000111,
-        0b110001011, 0b110001101, 0b110011111, 0b110100011, 0b110101011,
-        0b110110001, 0b110111101, 0b111000011, 0b111001111, 0b111010111,
-        0b111011101, 0b111100111, 0b111110011, 0b111110101, 0b111111001];
-
     #[test] // GF8 input and output
-        fn test_GF8_input_output() {
-            let mut rng = thread_rng();
-            let p = *IRRED_GF8.choose(&mut rng).unwrap();
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&Modulus::GF8 { p });
-            b.output(&x).unwrap();
-            let c = b.finish();
-    
-            println!("{:?}", c.output_refs);
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>();
-                let res = c.eval_plain(&[x as u16], &[]).unwrap();
-                println!("{:?}", res);
-                assert_eq!(x as u16, res[0]);
-            }
-        }
-    
-        
-        #[test] // GF8 addition 
-        fn test_GF8_addition() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
-            let z = b.add(&x, &y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>();
-                let y = rng.gen::<u8>();
-                let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
-                assert_eq!(res[0], (x ^ y) as u16);
-            }
-        }
-        
-        #[test] // GF8 subtraction 
-        fn test_GF8_subtraction() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
+    fn test_GF8_input_output() {
+        let mut rng = thread_rng();
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
 
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
-            let z = b.sub(&x, &y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = (rng.gen::<u8>()) as u16;
-                let y = (rng.gen::<u8>()) as u16;
-                let res = c.eval_plain(&[x], &[y]).unwrap();
-                assert_eq!(res[0], (x ^ y));
-            }
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(p);
+        b.output(&x).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = rng.gen::<u8>();
+            let res = c.eval_plain(&[x as u16], &[]).unwrap();
+            assert_eq!(x as u16, res[0]);
         }
-        
-        #[test] 
-        fn test_GF8_cmul() {
-            let p = Modulus::GF8 { p: 283 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = 2_u16.pow(6) + 2_u16.pow(4) + 2;
-            let z = b.cmul(&x, y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            
-            let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
+    }
+
+
+    #[test] // GF8 addition
+    fn test_GF8_addition() {
+        let mut rng = thread_rng();
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(p);
+        let y = b.evaluator_input(p);
+        let z = b.add(&x, &y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = rng.gen::<u8>();
+            let y = rng.gen::<u8>();
+            let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
+            assert_eq!(res[0], (x ^ y) as u16);
+        }
+    }
+
+    #[test] // GF8 subtraction
+    fn test_GF8_subtraction() {
+        let mut rng = thread_rng();
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(p);
+        let y = b.evaluator_input(p);
+        let z = b.sub(&x, &y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = (rng.gen::<u8>()) as u16;
+            let y = (rng.gen::<u8>()) as u16;
+            let res = c.eval_plain(&[x], &[y]).unwrap();
+            assert_eq!(res[0], (x ^ y));
+        }
+    }
+
+    #[test]
+    fn test_GF8_cmul() {
+        let p = Modulus::GF8 { p: 283 };
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&p);
+        let y = 2_u16.pow(6) + 2_u16.pow(4) + 2;
+        let z = b.cmul(&x, y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+
+        let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
+        let res = c.eval_plain(x, &[]).unwrap();
+        assert_eq!(res[0], 2_u16.pow(7) + 2_u16.pow(4) + 1);
+    }
+
+
+    #[test] // GF8 proj
+    fn test_GF8_proj() {
+        let mut rng = thread_rng();
+        let p = Modulus::GF8_MODULI.choose(&mut rng).unwrap();
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(p);
+        let tab = (0..p.size()).map(|i| (i * 9 + 1) % p.size()).collect_vec();
+        let z = b.proj(&x, &p, Some(tab)).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = &[(rng.gen::<u8>()) as u16];
             let res = c.eval_plain(x, &[]).unwrap();
-            assert_eq!(res[0], 2_u16.pow(7)+2_u16.pow(4)+1);
+            assert_eq!(res[0], (x[0] * 9 + 1) % p.size());
         }
-        
-
-        #[test] // GF8 proj 
-        fn test_GF8_proj() {
-            let mut rng = thread_rng();
-            let p = Modulus::GF8 { p: *IRRED_GF8.choose(&mut rng).unwrap() };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
-            let z = b.proj(&x, &p, Some(tab)).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = &[(rng.gen::<u8>()) as u16];
-                let res = c.eval_plain(x, &[]).unwrap();
-                assert_eq!(res[0], (x[0]*9 + 1) % p.size());
-            }
-        }
-        
+    }
 }
 
 #[cfg(test)]
@@ -1311,111 +1270,108 @@ mod GFk {
     use super::*;   
     use rand::seq::SliceRandom;
 
-    const IRRED_GFk: [(u16, u8); 11] = [(0b1101, 3), (0b1011, 3),
-    (0b100101, 5), (0b110111, 5), (0b111011, 5), 
-    (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
-    (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)]; 
+    const IRRED_GF_K: [(u16, u8); 11] = [
+        (0b1101, 3), (0b1011, 3),
+        (0b100101, 5), (0b110111, 5), (0b111011, 5),
+        (0b1000011, 6), (0b1101101, 6), (0b1110101, 6),
+        (0b10000011, 7), (0b10011101, 7), (0b10111111, 7)
+    ];
 
     #[test] // GFk input and output 
-        fn test_GFk_input_output() {
-            let mut rng = thread_rng();
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&Modulus::GFk { p: poly.0, k: poly.1 });
-            b.output(&x).unwrap();
-            let c = b.finish();
-    
-            println!("{:?}", c.output_refs);
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>() % p.size() as u8;
-                let res = c.eval_plain(&[x as u16], &[]).unwrap();
-                println!("{:?}", res);
-                assert_eq!(x as u16, res[0]);
-            }
-        }
-    
-        
-        #[test] // GFk addition 
-        fn test_GFk_addition() {
-            let mut rng = thread_rng();
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
-            let z = b.add(&x, &y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = rng.gen::<u8>() % p.size() as u8;
-                let y = rng.gen::<u8>() % p.size() as u8;
-                let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
-                assert_eq!(res[0], (x ^ y) as u16);
-            }
-        }
-        
-        #[test] // GFk subtraction 
-        fn test_GFk_subtraction() {
-            let mut rng = thread_rng();
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
+    fn test_GFk_input_output() {
+        let mut rng = thread_rng();
+        let poly = *IRRED_GF_K.choose(&mut rng).unwrap();
+        let p = Modulus::GFk { p: poly.0, k: poly.1 };
 
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = b.evaluator_input(&p);
-            let z = b.sub(&x, &y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = (rng.gen::<u8>()) as u16 % p.size();
-                let y = (rng.gen::<u8>()) as u16 % p.size();
-                let res = c.eval_plain(&[x], &[y]).unwrap();
-                assert_eq!(res[0], (x ^ y));
-            }
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&Modulus::GFk { p: poly.0, k: poly.1 });
+        b.output(&x).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = rng.gen::<u8>() % p.size() as u8;
+            let res = c.eval_plain(&[x as u16], &[]).unwrap();
+            assert_eq!(x as u16, res[0]);
         }
-        
-        #[test] // GFk cmul
-        fn test_GFk_cmul() {
-            let p = Modulus::GFk { p: 283, k: 8 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let y = 2_u16.pow(6) + 2_u16.pow(4) + 2;
-            let z = b.cmul(&x, y).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            
-            let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
+    }
+
+
+    #[test] // GFk addition
+    fn test_GFk_addition() {
+        let mut rng = thread_rng();
+        let poly = *IRRED_GF_K.choose(&mut rng).unwrap();
+        let p = Modulus::GFk { p: poly.0, k: poly.1 };
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&p);
+        let y = b.evaluator_input(&p);
+        let z = b.add(&x, &y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = rng.gen::<u8>() % p.size() as u8;
+            let y = rng.gen::<u8>() % p.size() as u8;
+            let res = c.eval_plain(&[x as u16], &[y as u16]).unwrap();
+            assert_eq!(res[0], (x ^ y) as u16);
+        }
+    }
+
+    #[test] // GFk subtraction
+    fn test_GFk_subtraction() {
+        let mut rng = thread_rng();
+        let poly = *IRRED_GF_K.choose(&mut rng).unwrap();
+        let p = Modulus::GFk { p: poly.0, k: poly.1 };
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&p);
+        let y = b.evaluator_input(&p);
+        let z = b.sub(&x, &y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = (rng.gen::<u8>()) as u16 % p.size();
+            let y = (rng.gen::<u8>()) as u16 % p.size();
+            let res = c.eval_plain(&[x], &[y]).unwrap();
+            assert_eq!(res[0], (x ^ y));
+        }
+    }
+
+    #[test] // GFk cmul
+    fn test_GFk_cmul() {
+        let p = Modulus::GFk { p: 283, k: 8 };
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&p);
+        let y = 2_u16.pow(6) + 2_u16.pow(4) + 2;
+        let z = b.cmul(&x, y).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        let x = &[2_u16.pow(7) + 2_u16.pow(6) + 2_u16.pow(5) + 2 + 1];
+        let res = c.eval_plain(x, &[]).unwrap();
+        assert_eq!(res[0], 2_u16.pow(7) + 2_u16.pow(4) + 1);
+    }
+
+
+    #[test] // GF8 proj
+    fn test_GF8_proj() {
+        let mut rng = thread_rng();
+        let poly = *IRRED_GF_K.choose(&mut rng).unwrap();
+        let p = Modulus::GFk { p: poly.0, k: poly.1 };
+
+        let mut b = CircuitBuilder::new();
+        let x = b.garbler_input(&p);
+        let tab = (0..p.size()).map(|i| (i * 9 + 1) % p.size()).collect_vec();
+        let z = b.proj(&x, &p, Some(tab)).unwrap();
+        b.output(&z).unwrap();
+        let c = b.finish();
+
+        for _ in 0..16 {
+            let x = &[(rng.gen::<u8>()) as u16 % p.size()];
             let res = c.eval_plain(x, &[]).unwrap();
-            assert_eq!(res[0], 2_u16.pow(7)+2_u16.pow(4)+1);
+            assert_eq!(res[0], (x[0] * 9 + 1) % p.size());
         }
-        
-
-        #[test] // GF8 proj
-        fn test_GF8_proj() {
-            let mut rng = thread_rng();
-            let poly = *IRRED_GFk.choose(&mut rng).unwrap();
-            let p = Modulus::GFk { p: poly.0, k: poly.1 };
-    
-            let mut b = CircuitBuilder::new();
-            let x = b.garbler_input(&p);
-            let tab = (0..p.size()).map(|i| (i*9 + 1) % p.size()).collect_vec();
-            let z = b.proj(&x, &p, Some(tab)).unwrap();
-            b.output(&z).unwrap();
-            let c = b.finish();
-    
-            for _ in 0..16 {
-                let x = &[(rng.gen::<u8>()) as u16 % p.size()];
-                let res = c.eval_plain(x, &[]).unwrap();
-                assert_eq!(res[0], (x[0]*9 + 1) % p.size());
-            }
-        }
-        
+    }
 }
