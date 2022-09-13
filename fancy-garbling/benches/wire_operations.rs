@@ -149,7 +149,7 @@ fn bench_hashback(c: &mut Criterion, q: u16) {
         let tweak = rand::random::<Block>();
         let wire = Wire::rand(rng, &Modulus::Zq { q });
         b.iter(|| {
-            let z = wire.hashback(tweak, q);
+            let z = wire.hashback(tweak, &Modulus::Zq { q });
             criterion::black_box(z);
         });
     });
